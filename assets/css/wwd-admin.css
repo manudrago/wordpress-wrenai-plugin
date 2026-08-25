@@ -1,0 +1,142 @@
+/**
+ * Admin styles.
+ */
+
+.wwd-wrap .wwd-lede {
+	max-width: 60em;
+	font-size: 14px;
+}
+
+.wwd-status-card {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+	align-items: flex-start;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 1rem 1.2rem;
+	margin: 1rem 0 1.5rem;
+}
+
+.wwd-status-card > div {
+	min-width: 12rem;
+}
+
+.wwd-status-card__actions {
+	margin-left: auto;
+	display: flex;
+	gap: .5rem;
+}
+
+.wwd-status {
+	margin: .3rem 0 0;
+	color: #646970;
+}
+
+.wwd-status.is-ok {
+	color: #007017;
+}
+
+.wwd-status.is-bad {
+	color: #b32d2e;
+}
+
+.wwd-status.is-warn {
+	color: #996800;
+}
+
+.wwd-warning {
+	color: #996800;
+}
+
+.wwd-bulk {
+	margin: .5rem 0;
+}
+
+.wwd-tables {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: .3rem 1rem;
+	max-height: 22rem;
+	overflow-y: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	background: #fff;
+	padding: .8rem 1rem;
+}
+
+.wwd-table-pick {
+	display: flex;
+	align-items: baseline;
+	gap: .4rem;
+	padding: .15rem 0;
+}
+
+.wwd-table-pick__name {
+	font-family: Menlo, Consolas, monospace;
+	font-size: 12px;
+}
+
+.wwd-table-pick.is-core .wwd-table-pick__name {
+	font-weight: 600;
+}
+
+.wwd-table-pick__meta {
+	color: #8c8f94;
+	font-size: 11px;
+	margin-left: auto;
+}
+
+.wwd-mdl,
+.wwd-code {
+	background: #1d2327;
+	color: #f0f0f1;
+	border-radius: 6px;
+	padding: 1rem;
+	overflow: auto;
+	max-height: 26rem;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.wwd-sql {
+	display: block;
+	max-width: 46em;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: 11px;
+	color: #50575e;
+	background: transparent;
+	padding: .2em 0 0;
+}
+
+.wwd-panels__actions a {
+	text-decoration: none;
+}
+
+.wwd-panels__actions .wwd-danger {
+	color: #b32d2e;
+}
+
+.wwd-pill {
+	display: inline-block;
+	border-radius: 999px;
+	padding: .1em .7em;
+	font-size: 12px;
+}
+
+.wwd-pill--ok {
+	background: #edfaef;
+	color: #007017;
+}
+
+.wwd-pill--bad {
+	background: #fcf0f1;
+	color: #b32d2e;
+}
+
+.wwd-inline-form {
+	display: inline-block;
+	margin: 1rem 0;
+}
