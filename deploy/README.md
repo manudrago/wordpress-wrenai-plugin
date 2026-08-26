@@ -39,13 +39,13 @@ L'installazione a bordo richiede 15-30 minuti, quasi tutti spesi a scaricare i
 pesi del modello. Puoi seguirla:
 
 ```bash
-ssh -i ~/.ssh/wren_ai_ed25519 ubuntu@IP 'tail -f /var/log/wren-install.log'
+ssh -i ~/.ssh/wren_ai ubuntu@IP 'tail -f /var/log/wren-install.log'
 ```
 
 È pronta quando questo risponde `{"status":"ok"}`:
 
 ```bash
-ssh -i ~/.ssh/wren_ai_ed25519 ubuntu@IP 'curl -s localhost:5555/health'
+ssh -i ~/.ssh/wren_ai ubuntu@IP 'curl -s localhost:5555/health'
 ```
 
 ### Se dice "Out of host capacity"

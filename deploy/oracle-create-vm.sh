@@ -26,7 +26,7 @@ MODEL="qwen2.5-coder:7b"
 WP_IP=""
 TOKEN=""
 COMPARTMENT=""
-SSH_KEY="${HOME}/.ssh/wren_ai_ed25519"
+SSH_KEY="${HOME}/.ssh/wren_ai"
 GATEWAY_PORT="8080"
 REPO_RAW="https://raw.githubusercontent.com/manudrago/wordpress-wrenai-plugin/main/deploy"
 
@@ -45,7 +45,7 @@ Usage: bash oracle-create-vm.sh [options]
   --memory GB       Memory (default 24).
   --boot-gb GB      Boot volume (default 100; Always Free covers 200 total).
   --compartment ID  Compartment OCID (default: the tenancy root).
-  --ssh-key PATH    Private key path to use or create (default ~/.ssh/wren_ai_ed25519).
+  --ssh-key PATH    Private key path to use or create (default ~/.ssh/wren_ai).
   -h, --help        This text.
 USAGE
 }
@@ -110,8 +110,18 @@ if [[ -f "${SSH_KEY}.pub" ]]; then
 	info "using existing ${SSH_KEY}"
 else
 	mkdir -p "$(dirname "$SSH_KEY")"
-	ssh-keygen -t ed25519 -N "" -f "$SSH_KEY" -C "wren-ai" >/dev/null
-	info "created ${SSH_KEY}"
+	chmod 700 "$(dirname "$SSH_KEY")" 2>/dev/null || true
+
+	# The Oracle Cloud Shell runs in FIPS mode, which refuses ed25519, so fall
+	# back to RSA rather than failing the whole run.
+	if ssh-keygen -t ed25519 -N "" -f "$SSH_KEY" -C "wren-ai" >/dev/null 2>&1; then
+		info "created ${SSH_KEY} (ed25519)"
+	else
+		rm -f "$SSH_KEY" "${SSH_KEY}.pub"
+		ssh-keygen -t rsa -b 4096 -N "" -f "$SSH_KEY" -C "wren-ai" >/dev/null \
+			|| die "Could not create an SSH key at ${SSH_KEY}."
+		info "created ${SSH_KEY} (RSA 4096 - FIPS mode does not allow ed25519)"
+	fi
 fi
 
 PUBLIC_KEY="$(cat "${SSH_KEY}.pub")"
