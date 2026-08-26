@@ -93,6 +93,9 @@ restrict_port() {
 	iptables -A "$chain" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
 	iptables -A "$chain" -i lo -j ACCEPT
 	iptables -A "$chain" -i docker0 -j ACCEPT
+	# Compose creates its own bridge (br-xxxx), and containers on it are not
+	# docker0 traffic: without this the service cannot reach Ollama at all.
+	iptables -A "$chain" -i br+ -j ACCEPT
 	iptables -A "$chain" -j DROP
 
 	iptables -C INPUT -p tcp --dport "$port" -j "$chain" 2>/dev/null \
@@ -214,10 +217,10 @@ curl -sf http://127.0.0.1:11434/api/version >/dev/null || die "Ollama did not co
 
 info "listening on 0.0.0.0:11434"
 
-# The bridge address the containers will use for the host.
-BRIDGE_IP="$(ip -4 addr show docker0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 || true)"
-BRIDGE_IP="${BRIDGE_IP:-172.17.0.1}"
-OLLAMA_URL="http://${BRIDGE_IP}:11434"
+# Not the docker0 gateway: the service runs on the compose network, whose
+# gateway is a different address entirely. host-gateway (set in the compose
+# override) resolves to the host from whichever bridge the container is on.
+OLLAMA_URL="http://host.docker.internal:11434"
 
 info "containers will call Ollama at ${OLLAMA_URL}"
 
@@ -328,6 +331,8 @@ cd "$DOCKER_DIR"
 cat > "${DOCKER_DIR}/docker-compose.override.yaml" <<OVERRIDE
 services:
   wren-ai-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports: !override
       - "127.0.0.1:${PORT}:${PORT}"
 OVERRIDE
@@ -337,6 +342,17 @@ OVERRIDE
 # gigabyte or so of RAM for nothing. Recreate rather than start, so a changed
 # .env or config.yaml actually reaches the running container.
 docker compose up -d --force-recreate qdrant wren-ai-service
+
+# The failure this catches is silent otherwise: indexing and every question
+# die inside the embedder with "Connection error".
+if ! docker run --rm --add-host host.docker.internal:host-gateway \
+	--network "$(docker network ls --format '{{.Name}}' | grep -m1 -E '(^|_)wren$' || echo bridge)" \
+	curlimages/curl:latest -sf -m 10 http://host.docker.internal:11434/api/version >/dev/null 2>&1; then
+	warn "containers cannot reach Ollama on the host - questions will fail in the embedder."
+	warn "Check the firewall rules for port 11434: iptables -S WREN_OLLAMA"
+else
+	info "containers can reach Ollama"
+fi
 
 info "waiting for the service to answer"
 

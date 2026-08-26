@@ -88,6 +88,7 @@ class WWD_Plugin {
 			array(
 				'mdl_hash'        => $hash,
 				'mdl_deployed_at' => time(),
+				'mdl_ready'       => 0,
 			)
 		);
 

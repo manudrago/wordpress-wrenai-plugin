@@ -59,6 +59,12 @@ class WWD_Ask_Session {
 			return new WP_Error( 'wwd_not_synced', __( 'The database schema has not been shared with Wren AI yet. An administrator has to run a schema sync first.', 'wp-wren-dashboards' ) );
 		}
 
+		$ready = self::ensure_model_ready();
+
+		if ( is_wp_error( $ready ) ) {
+			return $ready;
+		}
+
 		$client   = new WWD_Wren_Client();
 		$response = $client->ask( $question, $keep_thread ? self::thread() : array() );
 
@@ -98,6 +104,51 @@ class WWD_Ask_Session {
 		$session->save();
 
 		return $session;
+	}
+
+	/**
+	 * Make sure the deployed model finished indexing.
+	 *
+	 * Deploying only hands the model to Wren AI; the indexing that follows can
+	 * fail on its own (an unreachable embedder, most often), and a question
+	 * asked against a half-built index simply hangs while it searches.
+	 *
+	 * @return true|WP_Error
+	 */
+	protected static function ensure_model_ready() {
+		if ( WWD_Settings::get( 'mdl_ready' ) ) {
+			return true;
+		}
+
+		$client = new WWD_Wren_Client();
+		$status = $client->semantics_status( (string) WWD_Settings::get( 'mdl_hash' ) );
+
+		if ( is_wp_error( $status ) ) {
+			return $status;
+		}
+
+		$state = isset( $status['status'] ) ? $status['status'] : '';
+
+		if ( 'finished' === $state ) {
+			WWD_Settings::update( array( 'mdl_ready' => 1 ) );
+
+			return true;
+		}
+
+		if ( 'indexing' === $state ) {
+			return new WP_Error( 'wwd_indexing', __( 'Wren AI is still indexing the database schema. Try again in a minute.', 'wp-wren-dashboards' ) );
+		}
+
+		$detail = isset( $status['error']['message'] ) ? (string) $status['error']['message'] : '';
+
+		return new WP_Error(
+			'wwd_index_failed',
+			sprintf(
+				/* translators: %s: error detail from Wren AI. */
+				__( 'Wren AI could not index the database schema, so questions cannot be answered yet. Deploy the schema again from Data & schema. %s', 'wp-wren-dashboards' ),
+				$detail
+			)
+		);
 	}
 
 	/**

@@ -33,6 +33,7 @@ class WWD_Settings {
 			'blocked_columns'    => array( 'user_pass', 'user_activation_key', 'user_email', 'session_tokens' ),
 			'mdl_hash'           => '',
 			'mdl_deployed_at'    => 0,
+			'mdl_ready'          => 0,
 			'custom_instruction' => self::default_instruction(),
 
 			// Behaviour / limits.

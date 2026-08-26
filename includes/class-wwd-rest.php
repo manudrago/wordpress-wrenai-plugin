@@ -418,6 +418,12 @@ class WWD_REST {
 
 		$result['mdl_hash'] = $hash;
 
+		// Remember a finished indexing run: questions asked later must not have
+		// to guess whether the model behind the hash is usable.
+		if ( isset( $result['status'] ) ) {
+			WWD_Settings::update( array( 'mdl_ready' => 'finished' === $result['status'] ? 1 : 0 ) );
+		}
+
 		return rest_ensure_response( $result );
 	}
 
