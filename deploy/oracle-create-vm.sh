@@ -203,7 +203,7 @@ step "Ubuntu image for ARM"
 
 IMAGE_ID="$(oci compute image list --compartment-id "$COMPARTMENT" \
 	--operating-system "Canonical Ubuntu" --operating-system-version "24.04" \
-	--shape "VM.Standard.A1.Flex" --sort-by TIMECREATED --sort-order DESC --limit 1 \
+	--shape "VM.Standard.A1.Flex" --sort-by TIMECREATED --sort-order DESC --limit 1 2>/dev/null \
 	| jq -r '.data[0].id // empty')"
 
 if [[ -z "$IMAGE_ID" ]]; then
@@ -273,52 +273,88 @@ METADATA="$(jq -n --arg key "$PUBLIC_KEY" --arg data "$USER_DATA" \
 
 step "Launching the instance (Always Free ARM)"
 
-mapfile -t ADS < <(oci iam availability-domain list --compartment-id "$TENANCY" | jq -r '.data[].name')
+# The OCI CLI prints progress lines around the JSON when --wait-for-state is
+# used, so pull out the document rather than feeding the lot to jq.
+json_of() {
+	sed -n '/^[[:space:]]*{/,$p' | jq -r "$1" 2>/dev/null || true
+}
 
-[[ ${#ADS[@]} -gt 0 ]] || die "No availability domains returned."
+find_instance() {
+	oci compute instance list --compartment-id "$COMPARTMENT" --display-name "$NAME" 2>/dev/null \
+		| jq -r '[.data[] | select(."lifecycle-state" | test("TERMINAT") | not)][0].id // empty'
+}
 
-INSTANCE_ID=""
+INSTANCE_ID="$(find_instance)"
 
-for AD in "${ADS[@]}"; do
-	info "trying ${AD}"
+if [[ -n "$INSTANCE_ID" ]]; then
+	info "an instance named ${NAME} already exists - reusing it"
+else
+	mapfile -t ADS < <(oci iam availability-domain list --compartment-id "$TENANCY" | jq -r '.data[].name')
 
-	set +e
-	OUT="$(oci compute instance launch \
-		--availability-domain "$AD" \
-		--compartment-id "$COMPARTMENT" \
-		--shape "VM.Standard.A1.Flex" \
-		--shape-config "{\"ocpus\":${OCPUS},\"memoryInGBs\":${MEMORY_GB}}" \
-		--image-id "$IMAGE_ID" \
-		--subnet-id "$SUBNET_ID" \
-		--assign-public-ip true \
-		--display-name "$NAME" \
-		--boot-volume-size-in-gbs "$BOOT_GB" \
-		--metadata "$METADATA" \
-		--wait-for-state RUNNING 2>&1)"
-	RC=$?
-	set -e
+	[[ ${#ADS[@]} -gt 0 ]] || die "No availability domains returned."
 
-	if [[ $RC -eq 0 ]]; then
-		INSTANCE_ID="$(printf '%s' "$OUT" | jq -r '.data.id' 2>/dev/null || true)"
-		break
-	fi
+	for AD in "${ADS[@]}"; do
+		info "trying ${AD}"
 
-	if grep -qi "Out of host capacity" <<<"$OUT"; then
-		warn "no free ARM capacity in ${AD} right now"
-		continue
-	fi
+		set +e
+		OUT="$(oci compute instance launch \
+			--availability-domain "$AD" \
+			--compartment-id "$COMPARTMENT" \
+			--shape "VM.Standard.A1.Flex" \
+			--shape-config "{\"ocpus\":${OCPUS},\"memoryInGBs\":${MEMORY_GB}}" \
+			--image-id "$IMAGE_ID" \
+			--subnet-id "$SUBNET_ID" \
+			--assign-public-ip true \
+			--display-name "$NAME" \
+			--boot-volume-size-in-gbs "$BOOT_GB" \
+			--metadata "$METADATA" \
+			--wait-for-state RUNNING 2>&1)"
+		RC=$?
+		set -e
 
-	if grep -qi "LimitExceeded\|QuotaExceeded" <<<"$OUT"; then
-		die "Your Always Free ARM allowance is already used up (4 OCPU / 24 GB in total). Free an existing instance or lower --ocpus/--memory."
-	fi
+		if [[ $RC -eq 0 ]]; then
+			INSTANCE_ID="$(printf '%s' "$OUT" | json_of '.data.id // empty')"
 
-	printf '%s\n' "$OUT" >&2
-	die "Launch failed."
-done
+			# Belt and braces: the launch worked, so the instance is findable by
+			# name even when the output could not be parsed.
+			[[ -n "$INSTANCE_ID" ]] || INSTANCE_ID="$(find_instance)"
+
+			[[ -n "$INSTANCE_ID" ]] && break
+
+			warn "the launch reported success but no instance id came back:"
+			printf '%s\n' "$OUT" | tail -5 >&2
+			die "Check the console under Compute -> Instances before re-running."
+		fi
+
+		if grep -qiE "out of (host )?capacity|insufficient (host )?capacity" <<<"$OUT"; then
+			warn "no free ARM capacity in ${AD} right now"
+			continue
+		fi
+
+		if grep -qi "LimitExceeded\|QuotaExceeded" <<<"$OUT"; then
+			die "Your Always Free ARM allowance is already used up (4 OCPU / 24 GB in total). Free an existing instance or lower --ocpus/--memory."
+		fi
+
+		printf '%s\n' "$OUT" | tail -20 >&2
+		die "Launch failed."
+	done
+fi
 
 [[ -n "$INSTANCE_ID" ]] || die "Every availability domain is out of ARM capacity. This is normal in busy regions: retry later, or try another region. Nothing was left half-built - re-running this script picks up where it stopped."
 
-PUBLIC_IP="$(oci compute instance list-vnics --instance-id "$INSTANCE_ID" | jq -r '.data[0]."public-ip"')"
+# The VNIC takes a moment to attach after the instance reaches RUNNING.
+PUBLIC_IP=""
+
+for _ in $(seq 1 20); do
+	PUBLIC_IP="$(oci compute instance list-vnics --instance-id "$INSTANCE_ID" 2>/dev/null \
+		| jq -r '.data[0]."public-ip" // empty')"
+
+	[[ -n "$PUBLIC_IP" && "$PUBLIC_IP" != "null" ]] && break
+
+	sleep 6
+done
+
+[[ -n "$PUBLIC_IP" ]] || die "The instance is up (${INSTANCE_ID}) but has no public IP yet. Check it in the console."
 
 # ---------------------------------------------------------------------------
 # Done
