@@ -321,9 +321,16 @@ step "Starting the stack"
 
 cd "$DOCKER_DIR"
 
-# An earlier version of this script wrote an override to paper over the
-# wren-ui lookups; the .env change above removes the need for it.
-rm -f "${DOCKER_DIR}/docker-compose.override.yaml"
+# Docker publishes container ports through PREROUTING/FORWARD, which never
+# passes the INPUT chain, so a host firewall rule cannot protect a published
+# port. Publish the service on loopback instead and let the gateway reach it
+# over the compose network: then the only way in from outside is port 8080.
+cat > "${DOCKER_DIR}/docker-compose.override.yaml" <<OVERRIDE
+services:
+  wren-ai-service:
+    ports: !override
+      - "127.0.0.1:${PORT}:${PORT}"
+OVERRIDE
 
 # The plugin runs its own SQL and only needs the AI service (and the vector
 # store it indexes into). The UI, engine and ibis containers would idle at a
@@ -386,23 +393,27 @@ http {
 				return 401;
 			}
 
-			proxy_pass http://${BRIDGE_IP}:${SERVICE_PORT};
+			proxy_pass http://wren-ai-service:${SERVICE_PORT};
 			proxy_set_header Host \$host;
 		}
 	}
 }
 NGINX
 
+	# Same network as the service, so it can be addressed by name now that it
+	# no longer listens on the bridge address.
+	WREN_NET="$(docker network ls --format '{{.Name}}' | grep -m1 -E '(^|_)wren$' || echo 'wrenai_wren')"
+
 	docker run -d --name wren-gateway --restart unless-stopped \
+		--network "$WREN_NET" \
 		-p "${GATEWAY_PORT}:${GATEWAY_PORT}" \
 		-v /etc/wren-gateway/nginx.conf:/etc/nginx/nginx.conf:ro \
 		nginx:alpine >/dev/null
 
 	info "gateway on port ${GATEWAY_PORT}, token required"
 
-	# With the gateway in place, the raw service must not be reachable from
-	# outside - but the health checks still run on this machine.
-	restrict_port "${PORT}" WREN_SERVICE
+	# No INPUT rule here on purpose: the service is published on 127.0.0.1 by
+	# the compose override above, which is what actually keeps it private.
 
 	PUBLIC_PORT="$GATEWAY_PORT"
 else
