@@ -73,6 +73,10 @@ die()  { printf '\033[1;31m!!  %s\033[0m\n' "$1" >&2; exit 1; }
 
 [[ "$(id -u)" -eq 0 ]] || die "Run this with sudo."
 
+# cloud-init runs scripts with no HOME at all, and the Ollama CLI panics on
+# that ("$HOME is not defined") before it does anything useful.
+export HOME="${HOME:-/root}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------------------------------------------------------------------------
@@ -206,6 +210,16 @@ if [[ "$SKIP_MODELS" == "no" ]]; then
 
 	info "embedding model: ${EMBEDDER}"
 	ollama pull "$EMBEDDER"
+
+	# The pull talks to the daemon, so the weights land in the service's own
+	# store: confirm the daemon really has them before wiring Wren AI to it.
+	ollama list | grep -q "$(cut -d: -f1 <<<"$MODEL")" \
+		|| die "Ollama does not list ${MODEL} after pulling it. Check: journalctl -u ollama -n 50"
+
+	ollama list | grep -q "$(cut -d: -f1 <<<"$EMBEDDER")" \
+		|| die "Ollama does not list ${EMBEDDER} after pulling it."
+
+	info "models ready"
 fi
 
 # ---------------------------------------------------------------------------

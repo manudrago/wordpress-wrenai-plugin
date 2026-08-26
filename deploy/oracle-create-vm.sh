@@ -252,9 +252,13 @@ chmod +x /opt/wren-deploy/oracle-arm-install.sh
 
 # Oracle's Ubuntu images block everything but SSH by default; the installer
 # adds its own rules on top.
-bash /opt/wren-deploy/oracle-arm-install.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}
-
-date > /opt/wren-deploy/INSTALL_COMPLETE
+if bash /opt/wren-deploy/oracle-arm-install.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}; then
+	date > /opt/wren-deploy/INSTALL_COMPLETE
+else
+	date > /opt/wren-deploy/INSTALL_FAILED
+	echo "Install failed. Fix the cause, then re-run:"
+	echo "  sudo bash /opt/wren-deploy/oracle-arm-install.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}"
+fi
 CLOUDINIT
 )"
 
