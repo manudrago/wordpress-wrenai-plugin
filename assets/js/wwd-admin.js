@@ -45,6 +45,16 @@
 		node.className = 'wwd-status' + ( tone ? ' is-' + tone : '' );
 	}
 
+	function checkHealth( output ) {
+		status( output, t( 'checking' ) );
+
+		return request( '/health' ).then( function () {
+			status( output, t( 'connected' ), 'ok' );
+		} ).catch( function ( error ) {
+			status( output, error.message, 'bad' );
+		} );
+	}
+
 	function bindHealth() {
 		var button = document.getElementById( 'wwd-check-health' );
 		var output = document.getElementById( 'wwd-health' );
@@ -54,14 +64,12 @@
 		}
 
 		button.addEventListener( 'click', function () {
-			status( output, t( 'checking' ) );
-
-			request( '/health' ).then( function () {
-				status( output, t( 'connected' ), 'ok' );
-			} ).catch( function ( error ) {
-				status( output, error.message, 'bad' );
-			} );
+			checkHealth( output );
 		} );
+
+		// Nobody wants to press a button to find out whether the thing they
+		// just configured works.
+		checkHealth( output );
 	}
 
 	function pollSchema( output, attempt ) {

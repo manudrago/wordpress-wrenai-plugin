@@ -155,17 +155,29 @@ class WWD_Shortcodes {
 		}
 
 		if ( ! WWD_Settings::is_configured() ) {
-			if ( current_user_can( 'manage_options' ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				return $this->notice( __( 'Data questions are not available yet.', 'wp-wren-dashboards' ) );
+			}
+
+			// Two different things are missing at two different stages; saying
+			// which one saves a hunt through the admin.
+			if ( '' === trim( (string) WWD_Settings::get( 'endpoint' ) ) ) {
 				return $this->notice(
 					sprintf(
 						/* translators: %s: settings URL. */
-						__( 'Wren AI is not connected yet. <a href="%s">Finish the setup</a> to start asking questions.', 'wp-wren-dashboards' ),
+						__( 'Wren AI is not connected yet. <a href="%s">Set the endpoint</a> first.', 'wp-wren-dashboards' ),
 						esc_url( admin_url( 'admin.php?page=wwd' ) )
 					)
 				);
 			}
 
-			return $this->notice( __( 'Data questions are not available yet.', 'wp-wren-dashboards' ) );
+			return $this->notice(
+				sprintf(
+					/* translators: %s: schema screen URL. */
+					__( 'Wren AI is connected, but the database schema has not been deployed yet. Open <a href="%s">Data &amp; schema</a>, then press "Build &amp; deploy schema" and wait for it to finish.', 'wp-wren-dashboards' ),
+					esc_url( admin_url( 'admin.php?page=wwd-schema' ) )
+				)
+			);
 		}
 
 		$this->enqueue();
