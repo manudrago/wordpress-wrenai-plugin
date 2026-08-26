@@ -277,6 +277,16 @@ fi
 sed -i "s|^PLATFORM=.*|PLATFORM=${PLATFORM}|" "${DOCKER_DIR}/.env"
 sed -i "s|^AI_SERVICE_FORWARD_PORT=.*|AI_SERVICE_FORWARD_PORT=${PORT}|" "${DOCKER_DIR}/.env"
 
+# The entrypoint only waits for wren-ui when SHOULD_FORCE_DEPLOY is set, and
+# that wait exits 1 after 60 seconds, so with restart: on-failure the service
+# would cycle roughly every minute. The plugin deploys the model itself through
+# the API, so the startup force-deploy has nothing to do here.
+if grep -q '^SHOULD_FORCE_DEPLOY=' "${DOCKER_DIR}/.env"; then
+	sed -i 's|^SHOULD_FORCE_DEPLOY=.*|SHOULD_FORCE_DEPLOY=|' "${DOCKER_DIR}/.env"
+else
+	echo 'SHOULD_FORCE_DEPLOY=' >> "${DOCKER_DIR}/.env"
+fi
+
 # LiteLLM insists on a key being present even when the endpoint ignores it.
 grep -q '^LLM_OPENAI_API_KEY=' "${DOCKER_DIR}/.env" \
 	|| echo 'LLM_OPENAI_API_KEY=ollama' >> "${DOCKER_DIR}/.env"
@@ -307,30 +317,19 @@ python3 "${SCRIPT_DIR}/make-ollama-config.py" \
 	--embedding-dim "$EMBEDDING_DIM" \
 	--output "${DOCKER_DIR}/config.yaml"
 
-step "Quietening the services we do not run"
-
-# The stock compose file assumes the full product: the AI service keeps trying
-# to resolve wren-ui and host.docker.internal, neither of which exists here.
-# An override maps them to addresses that fail immediately instead of turning
-# into repeated DNS lookups.
-cat > "${DOCKER_DIR}/docker-compose.override.yaml" <<OVERRIDE
-services:
-  wren-ai-service:
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "wren-ui:127.0.0.1"
-OVERRIDE
-
-info "wren-ui and host.docker.internal resolved locally"
-
 step "Starting the stack"
 
 cd "$DOCKER_DIR"
 
+# An earlier version of this script wrote an override to paper over the
+# wren-ui lookups; the .env change above removes the need for it.
+rm -f "${DOCKER_DIR}/docker-compose.override.yaml"
+
 # The plugin runs its own SQL and only needs the AI service (and the vector
 # store it indexes into). The UI, engine and ibis containers would idle at a
-# gigabyte or so of RAM for nothing.
-docker compose up -d qdrant wren-ai-service
+# gigabyte or so of RAM for nothing. Recreate rather than start, so a changed
+# .env or config.yaml actually reaches the running container.
+docker compose up -d --force-recreate qdrant wren-ai-service
 
 info "waiting for the service to answer"
 
