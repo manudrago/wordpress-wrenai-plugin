@@ -88,6 +88,9 @@ restrict_port() {
 	done
 
 	iptables -N "$chain" 2>/dev/null || iptables -F "$chain"
+	# Connections that are already running must survive the rules being
+	# rewritten, or a long download dies halfway through.
+	iptables -A "$chain" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
 	iptables -A "$chain" -i lo -j ACCEPT
 	iptables -A "$chain" -i docker0 -j ACCEPT
 	iptables -A "$chain" -j DROP
@@ -218,12 +221,6 @@ OLLAMA_URL="http://${BRIDGE_IP}:11434"
 
 info "containers will call Ollama at ${OLLAMA_URL}"
 
-# Ollama has no auth of its own: only this host and its containers may talk
-# to it.
-restrict_port 11434 WREN_OLLAMA
-
-info "port 11434 closed to everything but localhost and the docker bridge"
-
 if [[ "$SKIP_MODELS" == "no" ]]; then
 	step "Pulling models (several GB, this is the slow part)"
 
@@ -243,6 +240,13 @@ if [[ "$SKIP_MODELS" == "no" ]]; then
 
 	info "models ready"
 fi
+
+# Ollama has no auth of its own: only this host and its containers may talk to
+# it. This comes after the pulls on purpose - a firewall change mid-download
+# kills the transfer.
+restrict_port 11434 WREN_OLLAMA
+
+info "port 11434 closed to everything but localhost and the docker bridge"
 
 # ---------------------------------------------------------------------------
 # 5. Wren AI
