@@ -17,35 +17,49 @@
 		return String( template ).replace( /%[sd]/, value );
 	}
 
+	/*
+	 * XMLHttpRequest rather than fetch on purpose. Plenty of plugins replace
+	 * window.fetch with an instrumented version, and a broken wrapper takes
+	 * every caller down with it - including this one. XHR keeps us out of that
+	 * fight.
+	 */
 	function request( path, options ) {
 		options = options || {};
 
-		var args = {
-			method: options.method || 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-WP-Nonce': config.nonce
-			},
-			credentials: 'same-origin'
-		};
+		return new Promise( function ( resolve, reject ) {
+			var xhr = new XMLHttpRequest();
 
-		if ( options.body ) {
-			args.body = JSON.stringify( options.body );
-		}
+			xhr.open( options.method || 'GET', config.root + path, true );
+			xhr.setRequestHeader( 'Content-Type', 'application/json' );
+			xhr.setRequestHeader( 'X-WP-Nonce', config.nonce );
+			xhr.withCredentials = true;
 
-		return window.fetch( config.root + path, args ).then( function ( response ) {
-			return response.json().catch( function () {
-				return {};
-			} ).then( function ( data ) {
-				if ( ! response.ok ) {
-					var error = new Error( ( data && data.message ) || t( 'error' ) );
+			xhr.onload = function () {
+				var data = {};
 
-					error.data = data;
-					throw error;
+				try {
+					data = JSON.parse( xhr.responseText );
+				} catch ( e ) {
+					data = {};
 				}
 
-				return data;
-			} );
+				if ( xhr.status >= 200 && xhr.status < 300 ) {
+					resolve( data );
+
+					return;
+				}
+
+				var error = new Error( data && data.message ? data.message : t( 'error' ) );
+
+				error.data = data;
+				reject( error );
+			};
+
+			xhr.onerror = function () {
+				reject( new Error( t( 'error' ) ) );
+			};
+
+			xhr.send( options.body ? JSON.stringify( options.body ) : null );
 		} );
 	}
 

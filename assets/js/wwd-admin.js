@@ -13,26 +13,42 @@
 		return i18n[ key ] || fallback || key;
 	}
 
+	// XHR, not fetch: other plugins wrap window.fetch and a broken wrapper
+	// would break this screen too.
 	function request( path, options ) {
 		options = options || {};
 
-		return window.fetch( config.root + path, {
-			method: options.method || 'GET',
-			credentials: 'same-origin',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-WP-Nonce': config.nonce
-			}
-		} ).then( function ( response ) {
-			return response.json().catch( function () {
-				return {};
-			} ).then( function ( data ) {
-				if ( ! response.ok ) {
-					throw new Error( ( data && data.message ) || t( 'failed' ) );
+		return new Promise( function ( resolve, reject ) {
+			var xhr = new XMLHttpRequest();
+
+			xhr.open( options.method || 'GET', config.root + path, true );
+			xhr.setRequestHeader( 'Content-Type', 'application/json' );
+			xhr.setRequestHeader( 'X-WP-Nonce', config.nonce );
+			xhr.withCredentials = true;
+
+			xhr.onload = function () {
+				var data = {};
+
+				try {
+					data = JSON.parse( xhr.responseText );
+				} catch ( e ) {
+					data = {};
 				}
 
-				return data;
-			} );
+				if ( xhr.status >= 200 && xhr.status < 300 ) {
+					resolve( data );
+
+					return;
+				}
+
+				reject( new Error( data && data.message ? data.message : t( 'failed' ) ) );
+			};
+
+			xhr.onerror = function () {
+				reject( new Error( t( 'failed' ) ) );
+			};
+
+			xhr.send( options.body ? JSON.stringify( options.body ) : null );
 		} );
 	}
 
