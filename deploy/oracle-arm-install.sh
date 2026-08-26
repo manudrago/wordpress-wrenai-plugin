@@ -307,6 +307,22 @@ python3 "${SCRIPT_DIR}/make-ollama-config.py" \
 	--embedding-dim "$EMBEDDING_DIM" \
 	--output "${DOCKER_DIR}/config.yaml"
 
+step "Quietening the services we do not run"
+
+# The stock compose file assumes the full product: the AI service keeps trying
+# to resolve wren-ui and host.docker.internal, neither of which exists here.
+# An override maps them to addresses that fail immediately instead of turning
+# into repeated DNS lookups.
+cat > "${DOCKER_DIR}/docker-compose.override.yaml" <<OVERRIDE
+services:
+  wren-ai-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "wren-ui:127.0.0.1"
+OVERRIDE
+
+info "wren-ui and host.docker.internal resolved locally"
+
 step "Starting the stack"
 
 cd "$DOCKER_DIR"
