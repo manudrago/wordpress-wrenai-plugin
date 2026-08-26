@@ -87,6 +87,11 @@ def main() -> int:
     parser.add_argument("--embedder", default="nomic-embed-text")
     parser.add_argument("--embedding-dim", type=int, default=768)
     parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument(
+        "--engine-url",
+        default="",
+        help="Endpoint for the wren_ui engine, which Wren AI uses to dry-run the SQL it writes",
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument(
         "--no-cpu-tuning",
@@ -112,6 +117,13 @@ def main() -> int:
         elif kind == "embedder":
             rewritten.append(build_embedder(url, args.embedder, args.timeout))
             seen["embedder"] = True
+        elif kind == "engine" and document.get("provider") == "wren_ui" and args.engine_url:
+            # Wren AI validates every statement it writes by dry-running it
+            # through this engine. We do not run the UI, so point it at whatever
+            # the caller provides - the plugin executes the SQL itself anyway,
+            # behind its own guard.
+            document["endpoint"] = args.engine_url.rstrip("/")
+            rewritten.append(document)
         elif kind == "document_store":
             document["embedding_model_dim"] = args.embedding_dim
             document["timeout"] = args.timeout

@@ -322,6 +322,7 @@ python3 "${SCRIPT_DIR}/make-ollama-config.py" \
 	--model "$MODEL" \
 	--embedder "$EMBEDDER" \
 	--embedding-dim "$EMBEDDING_DIM" \
+	--engine-url "http://wren-sql-validator:3000" \
 	--output "${DOCKER_DIR}/config.yaml"
 
 step "Starting the stack"
@@ -357,6 +358,48 @@ if ! docker run --rm --add-host host.docker.internal:host-gateway \
 else
 	info "containers can reach Ollama"
 fi
+
+# Wren AI dry-runs every statement it writes through the "engine" before
+# returning it, and treats a failure as "no relevant SQL". That engine is the
+# UI we deliberately do not run, so questions died there. The plugin executes
+# the SQL itself, behind its own guard, so all this needs to do is answer the
+# dry-run - which is exactly what this 10 MB container does.
+step "Starting the SQL validator"
+
+WREN_NET="$(docker network ls --format '{{.Name}}' | grep -m1 -E '(^|_)wren$' || echo bridge)"
+
+mkdir -p /etc/wren-sql-validator
+
+cat > /etc/wren-sql-validator/nginx.conf <<'VALIDATOR'
+events { worker_connections 64; }
+
+http {
+	server {
+		listen 3000;
+
+		# The shape WrenUI.execute_sql expects back from a PreviewSql mutation.
+		location /api/graphql {
+			default_type application/json;
+			return 200 '{"data":{"previewSql":{"columns":["ok"],"data":[[1]]}}}';
+		}
+
+		location / {
+			default_type application/json;
+			return 200 '{"status":"ok"}';
+		}
+	}
+}
+VALIDATOR
+
+docker rm -f wren-sql-validator >/dev/null 2>&1 || true
+
+docker run -d --name wren-sql-validator --restart unless-stopped \
+	--network "$WREN_NET" \
+	--network-alias wren-ui \
+	-v /etc/wren-sql-validator/nginx.conf:/etc/nginx/nginx.conf:ro \
+	nginx:alpine >/dev/null
+
+info "SQL validator up (also answers to the name wren-ui)"
 
 info "waiting for the service to answer"
 
@@ -425,8 +468,6 @@ NGINX
 
 	# Same network as the service, so it can be addressed by name now that it
 	# no longer listens on the bridge address.
-	WREN_NET="$(docker network ls --format '{{.Name}}' | grep -m1 -E '(^|_)wren$' || echo 'wrenai_wren')"
-
 	docker run -d --name wren-gateway --restart unless-stopped \
 		--network "$WREN_NET" \
 		-p "${GATEWAY_PORT}:${GATEWAY_PORT}" \
