@@ -42,6 +42,9 @@ Usage: sudo bash oracle-arm-install.sh [options]
                     Roomier box? phi4:14b answers better and needs ~9 GB.
   --embedder NAME   Ollama embedding model (default: nomic-embed-text, 768 dims).
   --embedding-dim N Dimensions of that embedder (default: 768).
+  --gateway-port N  Port the authenticating gateway listens on (default: 8080).
+                    Use 80 when the WordPress host only allows standard ports
+                    outbound - plenty of shared hosting does.
   --dir PATH        Where to keep the Wren AI checkout (default: /opt/wrenai).
   --skip-models     Don't pull the Ollama models (they are already there).
   -h, --help        This text.
@@ -55,6 +58,7 @@ while [[ $# -gt 0 ]]; do
 		--model) MODEL="$2"; shift 2 ;;
 		--embedder) EMBEDDER="$2"; shift 2 ;;
 		--embedding-dim) EMBEDDING_DIM="$2"; shift 2 ;;
+		--gateway-port) GATEWAY_PORT="$2"; shift 2 ;;
 		--dir) WREN_DIR="$2"; shift 2 ;;
 		--skip-models) SKIP_MODELS="yes"; shift ;;
 		-h|--help) usage; exit 0 ;;
@@ -383,7 +387,10 @@ if [[ -n "$TOKEN" ]]; then
 
 	# Wren AI has no authentication of its own. nginx checks the same bearer
 	# token the plugin already sends in its API key field.
-	docker rm -f wren-gateway >/dev/null 2>&1 || true
+	# wren-gateway-80 is a hand-made container from troubleshooting: it carries
+	# an older config and sits outside the compose network, so it answers 502
+	# once the service stops listening on the bridge address.
+	docker rm -f wren-gateway wren-gateway-80 >/dev/null 2>&1 || true
 
 	mkdir -p /etc/wren-gateway
 
