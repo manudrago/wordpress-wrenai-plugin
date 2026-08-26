@@ -441,6 +441,19 @@ NGINX
 	PUBLIC_PORT="$GATEWAY_PORT"
 else
 	PUBLIC_PORT="$PORT"
+
+	# Without a token there is no gateway, and the service now listens on
+	# loopback only - so nothing outside this machine can reach it. Say so,
+	# because the summary below otherwise reads like a working setup.
+	warn "No --token given: no gateway was set up, and the service is published on 127.0.0.1 only."
+	warn "Nothing outside this machine can reach it. Re-run with --token <secret> to restore the gateway."
+
+	STALE="$(docker ps --format '{{.Names}}' | grep -E '^wren-gateway' || true)"
+
+	if [[ -n "$STALE" ]]; then
+		warn "Gateway containers from an earlier run are still up: ${STALE//$'\n'/, }"
+		warn "They keep an older configuration and may answer 502. Re-run with --token to replace them."
+	fi
 fi
 
 step "Firewall"
