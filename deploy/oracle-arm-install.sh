@@ -73,6 +73,29 @@ die()  { printf '\033[1;31m!!  %s\033[0m\n' "$1" >&2; exit 1; }
 
 [[ "$(id -u)" -eq 0 ]] || die "Run this with sudo."
 
+# Keep a port reachable from this machine and its containers, and from nowhere
+# else. A plain "! -i docker0 -j DROP" also swallows loopback, which breaks
+# every local client - the Ollama CLI and this script's own health checks
+# included - so the decision lives in its own chain.
+restrict_port() {
+	local port="$1" chain="$2"
+
+	command -v iptables >/dev/null 2>&1 || return 0
+
+	# Drop the too-broad rule an earlier version of this script may have left.
+	while iptables -C INPUT -p tcp --dport "$port" ! -i docker0 -j DROP 2>/dev/null; do
+		iptables -D INPUT -p tcp --dport "$port" ! -i docker0 -j DROP
+	done
+
+	iptables -N "$chain" 2>/dev/null || iptables -F "$chain"
+	iptables -A "$chain" -i lo -j ACCEPT
+	iptables -A "$chain" -i docker0 -j ACCEPT
+	iptables -A "$chain" -j DROP
+
+	iptables -C INPUT -p tcp --dport "$port" -j "$chain" 2>/dev/null \
+		|| iptables -I INPUT 1 -p tcp --dport "$port" -j "$chain"
+}
+
 # cloud-init runs scripts with no HOME at all, and the Ollama CLI panics on
 # that ("$HOME is not defined") before it does anything useful.
 export HOME="${HOME:-/root}"
@@ -195,12 +218,11 @@ OLLAMA_URL="http://${BRIDGE_IP}:11434"
 
 info "containers will call Ollama at ${OLLAMA_URL}"
 
-# Ollama has no auth of its own: only the docker bridge may talk to it.
-if command -v iptables >/dev/null 2>&1; then
-	iptables -C INPUT -p tcp --dport 11434 ! -i docker0 -j DROP 2>/dev/null \
-		|| iptables -I INPUT 1 -p tcp --dport 11434 ! -i docker0 -j DROP
-	info "port 11434 closed to everything but the docker bridge"
-fi
+# Ollama has no auth of its own: only this host and its containers may talk
+# to it.
+restrict_port 11434 WREN_OLLAMA
+
+info "port 11434 closed to everything but localhost and the docker bridge"
 
 if [[ "$SKIP_MODELS" == "no" ]]; then
 	step "Pulling models (several GB, this is the slow part)"
@@ -359,11 +381,9 @@ NGINX
 
 	info "gateway on port ${GATEWAY_PORT}, token required"
 
-	# With the gateway in place, the raw service must not be reachable.
-	if command -v iptables >/dev/null 2>&1; then
-		iptables -C INPUT -p tcp --dport "${PORT}" ! -i docker0 -j DROP 2>/dev/null \
-			|| iptables -I INPUT 1 -p tcp --dport "${PORT}" ! -i docker0 -j DROP
-	fi
+	# With the gateway in place, the raw service must not be reachable from
+	# outside - but the health checks still run on this machine.
+	restrict_port "${PORT}" WREN_SERVICE
 
 	PUBLIC_PORT="$GATEWAY_PORT"
 else
