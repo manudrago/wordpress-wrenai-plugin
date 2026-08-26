@@ -101,6 +101,10 @@ docker compose up -d
 
 Dettagli, alternative (Ollama, modelli locali) e Wren AI Cloud: [`docs/wren-ai-setup.md`](docs/wren-ai-setup.md).
 
+**Non hai un server?** [`deploy/`](deploy/README.md) contiene l'installazione
+automatica su una VM ARM gratuita di Oracle Cloud con Ollama: un comando nella
+Cloud Shell crea la macchina e installa tutto (zero costi, nessuna chiave OpenAI).
+
 ### 2. Collega il plugin
 
 **wp-admin → Wren AI → Impostazioni**

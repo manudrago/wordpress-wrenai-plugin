@@ -19,7 +19,7 @@ class WWD_Ask_Session {
 	const TRANSIENT_PREFIX = 'wwd_ask_';
 	const THREAD_PREFIX    = 'wwd_thread_';
 	const TTL              = 1800;
-	const MAX_STEPS        = 180;
+	const MAX_STEPS        = 600;
 
 	/**
 	 * Session state.
@@ -161,7 +161,16 @@ class WWD_Ask_Session {
 	public function advance() {
 		$this->state['steps']++;
 
-		if ( $this->state['steps'] > self::MAX_STEPS ) {
+		/**
+		 * Filters how many polls a single question may take before it is given
+		 * up on. The default allows several minutes, which a local model on CPU
+		 * (Ollama on a small VM) can easily need.
+		 *
+		 * @param int $steps Maximum polls.
+		 */
+		$max_steps = (int) apply_filters( 'wwd_max_poll_steps', self::MAX_STEPS );
+
+		if ( $this->state['steps'] > $max_steps ) {
 			return $this->fail( __( 'Wren AI took too long to answer. Please try a simpler question.', 'wp-wren-dashboards' ) );
 		}
 
