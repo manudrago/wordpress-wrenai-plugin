@@ -175,3 +175,18 @@
 	margin-left: .6rem;
 	vertical-align: middle;
 }
+
+.wwd-engine-pick {
+	display: block;
+	max-width: 46em;
+	margin: 0 0 .8rem;
+}
+
+.wwd-engine-pick strong {
+	margin-left: .2rem;
+}
+
+.wwd-engine-pick .description {
+	display: block;
+	margin: .1rem 0 0 1.85rem;
+}

@@ -55,12 +55,14 @@ class WWD_Plugin {
 
 		$url = admin_url( 'admin.php?page=wwd' );
 
-		echo '<div class="notice notice-info is-dismissible"><p>';
-		printf(
+		$message = 'wren' === WWD_Settings::get( 'engine', 'direct' )
 			/* translators: %s: settings URL. */
-			wp_kses_post( __( '<strong>Wren AI Dashboards</strong> needs two things before it can answer questions: a Wren AI endpoint and a deployed schema. <a href="%s">Finish the setup</a>.', 'wp-wren-dashboards' ) ),
-			esc_url( $url )
-		);
+			? __( '<strong>Wren AI Dashboards</strong> needs two things before it can answer questions: a Wren AI endpoint and a deployed schema. <a href="%s">Finish the setup</a>.', 'wp-wren-dashboards' )
+			/* translators: %s: settings URL. */
+			: __( '<strong>Wren AI Dashboards</strong> needs an API key for a language model before it can answer questions. <a href="%s">Finish the setup</a> - it takes a minute.', 'wp-wren-dashboards' );
+
+		echo '<div class="notice notice-info is-dismissible"><p>';
+		printf( wp_kses_post( $message ), esc_url( $url ) );
 		echo '</p></div>';
 	}
 
@@ -70,6 +72,13 @@ class WWD_Plugin {
 	 * @return array|WP_Error
 	 */
 	public static function sync_schema() {
+		if ( 'wren' !== WWD_Settings::get( 'engine', 'direct' ) ) {
+			return new WP_Error(
+				'wwd_no_deploy_needed',
+				__( 'Nothing to deploy: the model reads the schema with every question. Pick the tables and save, and you are done.', 'wp-wren-dashboards' )
+			);
+		}
+
 		$mdl = WWD_Schema::build_mdl();
 
 		if ( empty( $mdl['models'] ) ) {

@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       WP Wren Dashboards
  * Plugin URI:        https://github.com/manudrago/wordpress-wrenai-plugin
- * Description:       Ask questions about your WordPress data in plain language and get instant, saveable dashboards. Powered by Wren AI (text-to-SQL + chart generation) over a read-only view of your database.
- * Version:           1.1.0
+ * Description:       Ask questions about your WordPress data in plain language and get instant, saveable dashboards. Text-to-SQL and charts from a language model of your choosing - or from Wren AI - over a read-only view of your database.
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WWD_VERSION', '1.1.0' );
+define( 'WWD_VERSION', '1.2.0' );
 define( 'WWD_PLUGIN_FILE', __FILE__ );
 define( 'WWD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WWD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -28,6 +28,10 @@ require_once WWD_PLUGIN_DIR . 'includes/class-wwd-schema.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-sql-guard.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-query-runner.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-wren-client.php';
+require_once WWD_PLUGIN_DIR . 'includes/class-wwd-model-client.php';
+require_once WWD_PLUGIN_DIR . 'includes/class-wwd-engine.php';
+require_once WWD_PLUGIN_DIR . 'includes/class-wwd-engine-direct.php';
+require_once WWD_PLUGIN_DIR . 'includes/class-wwd-engine-wren.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-pairing.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-dashboards.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-ask-session.php';

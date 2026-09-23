@@ -159,6 +159,16 @@ class WWD_Shortcodes {
 				return $this->notice( __( 'Data questions are not available yet.', 'wp-wren-dashboards' ) );
 			}
 
+			if ( 'wren' !== WWD_Settings::get( 'engine', 'direct' ) ) {
+				return $this->notice(
+					sprintf(
+						/* translators: %s: settings URL. */
+						__( 'No model is configured yet. <a href="%s">Add an API key</a> and this form starts working.', 'wp-wren-dashboards' ),
+						esc_url( admin_url( 'admin.php?page=wwd' ) )
+					)
+				);
+			}
+
 			// Two different things are missing at two different stages; saying
 			// which one saves a hunt through the admin.
 			if ( '' === trim( (string) WWD_Settings::get( 'endpoint' ) ) ) {

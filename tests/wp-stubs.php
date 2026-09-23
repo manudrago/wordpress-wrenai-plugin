@@ -254,6 +254,32 @@ class WWD_Test_HTTP {
 	 * @var array
 	 */
 	public static $response = array( 'query_id' => 'test-query' );
+
+	/**
+	 * Status code to answer with.
+	 *
+	 * @var int
+	 */
+	public static $status = 200;
+
+	/**
+	 * Raw body, when a test needs something that is not JSON.
+	 *
+	 * @var string|null
+	 */
+	public static $raw = null;
+
+	/**
+	 * Back to the defaults.
+	 *
+	 * @return void
+	 */
+	public static function reset() {
+		self::$last     = array();
+		self::$response = array( 'query_id' => 'test-query' );
+		self::$status   = 200;
+		self::$raw      = null;
+	}
 }
 
 /**
@@ -272,9 +298,44 @@ function wp_remote_request( $url, $args = array() ) {
 	);
 
 	return array(
-		'response' => array( 'code' => 200 ),
-		'body'     => wp_json_encode( WWD_Test_HTTP::$response ),
+		'response' => array( 'code' => WWD_Test_HTTP::$status ),
+		'body'     => null === WWD_Test_HTTP::$raw ? wp_json_encode( WWD_Test_HTTP::$response ) : WWD_Test_HTTP::$raw,
 	);
+}
+
+/**
+ * HTTP POST stub.
+ *
+ * @param string $url  URL.
+ * @param array  $args Request arguments.
+ * @return array
+ */
+function wp_remote_post( $url, $args = array() ) {
+	$args['method'] = 'POST';
+
+	return wp_remote_request( $url, $args );
+}
+
+/**
+ * Site time.
+ *
+ * @param string $type Ignored, always a timestamp here.
+ * @param int    $gmt  Ignored.
+ * @return int
+ */
+function current_time( $type, $gmt = 0 ) {
+	return time();
+}
+
+/**
+ * URL parser.
+ *
+ * @param string $url       URL.
+ * @param int    $component Component constant, or -1 for all.
+ * @return mixed
+ */
+function wp_parse_url( $url, $component = -1 ) {
+	return parse_url( $url, $component ); // phpcs:ignore WordPress.WP.AlternativeFunctions
 }
 
 /**

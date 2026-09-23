@@ -21,6 +21,20 @@ class WWD_Settings {
 	 */
 	public static function defaults() {
 		return array(
+			/*
+			 * Where the thinking happens. "direct" calls a language model from
+			 * this site and needs nothing installed anywhere; "wren" talks to a
+			 * Wren AI service, which is worth running when the schema is large
+			 * or already modelled there.
+			 */
+			'engine'             => 'direct',
+
+			// The model, for the direct engine.
+			'model_provider'     => 'google',
+			'model_api_key'      => '',
+			'model_name'         => '',
+			'model_base'         => '',
+
 			// Connection to the Wren AI service (wren-ai-service REST API).
 			'endpoint'           => 'http://localhost:5555',
 			'api_prefix'         => '/v1',
@@ -93,7 +107,19 @@ class WWD_Settings {
 			$stored = array();
 		}
 
-		return array_merge( self::defaults(), $stored );
+		$settings = array_merge( self::defaults(), $stored );
+
+		/*
+		 * The engine setting arrived after the first releases, which only knew
+		 * how to talk to Wren AI. A site that has a model deployed there was
+		 * working before the upgrade and must keep working after it, so the
+		 * new default only applies to installs that never deployed one.
+		 */
+		if ( ! array_key_exists( 'engine', $stored ) && ! empty( $stored['mdl_hash'] ) ) {
+			$settings['engine'] = 'wren';
+		}
+
+		return $settings;
 	}
 
 	/**
@@ -135,6 +161,28 @@ class WWD_Settings {
 	 */
 	public static function sanitize( array $input ) {
 		$clean = array();
+
+		if ( isset( $input['engine'] ) ) {
+			$clean['engine'] = 'wren' === $input['engine'] ? 'wren' : 'direct';
+		}
+
+		if ( isset( $input['model_provider'] ) ) {
+			$provider = sanitize_key( $input['model_provider'] );
+
+			$clean['model_provider'] = array_key_exists( $provider, WWD_Model_Client::providers() ) ? $provider : 'google';
+		}
+
+		if ( isset( $input['model_api_key'] ) ) {
+			$clean['model_api_key'] = trim( sanitize_text_field( $input['model_api_key'] ) );
+		}
+
+		if ( isset( $input['model_name'] ) ) {
+			$clean['model_name'] = trim( sanitize_text_field( $input['model_name'] ) );
+		}
+
+		if ( isset( $input['model_base'] ) ) {
+			$clean['model_base'] = untrailingslashit( esc_url_raw( trim( $input['model_base'] ) ) );
+		}
 
 		if ( isset( $input['endpoint'] ) ) {
 			$clean['endpoint'] = untrailingslashit( esc_url_raw( trim( $input['endpoint'] ) ) );
@@ -261,6 +309,6 @@ class WWD_Settings {
 	 * @return bool
 	 */
 	public static function is_configured() {
-		return '' !== trim( (string) self::get( 'endpoint' ) ) && '' !== (string) self::get( 'mdl_hash' );
+		return WWD_Engine::make()->is_configured();
 	}
 }

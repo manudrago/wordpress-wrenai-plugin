@@ -462,6 +462,17 @@ class WWD_REST {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function schema_status() {
+		if ( 'wren' !== WWD_Settings::get( 'engine', 'direct' ) ) {
+			// Nothing is deployed anywhere: the schema travels with the
+			// question, so it is as current as the last save.
+			return rest_ensure_response(
+				array(
+					'status'  => 'finished',
+					'message' => __( 'The model reads the schema with every question. Nothing to deploy.', 'wp-wren-dashboards' ),
+				)
+			);
+		}
+
 		$hash = (string) WWD_Settings::get( 'mdl_hash' );
 
 		if ( '' === $hash ) {
@@ -658,14 +669,13 @@ class WWD_REST {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function health() {
-		$client = new WWD_Wren_Client();
-		$result = $client->health();
+		$result = WWD_Engine::make()->health();
 
 		if ( is_wp_error( $result ) ) {
 			return $this->error( $result );
 		}
 
-		return rest_ensure_response( array( 'ok' => true, 'service' => $result ) );
+		return rest_ensure_response( array_merge( array( 'ok' => true ), (array) $result ) );
 	}
 
 	/**

@@ -331,6 +331,93 @@ class WWD_Schema {
 	}
 
 	/**
+	 * The same model, written for a language model to read.
+	 *
+	 * A WordPress database is a dozen tables, so the whole schema fits in a
+	 * prompt and no semantic layer or vector store is needed to find the
+	 * relevant parts of it. This is that prompt: DDL-shaped, because every
+	 * model has read a great deal of DDL, with the descriptions and the
+	 * relationships WordPress never declares.
+	 *
+	 * @return string
+	 */
+	public static function prompt_text() {
+		// Building it reads every shared table's columns, and a single
+		// question can ask for it more than once.
+		static $memo = null;
+
+		if ( null !== $memo ) {
+			return $memo;
+		}
+
+		$mdl   = self::build_mdl();
+		$lines = array();
+
+		foreach ( $mdl['models'] as $model ) {
+			$description = isset( $model['properties']->description ) ? $model['properties']->description : '';
+
+			$lines[] = sprintf( 'CREATE TABLE `%s` (', $model['name'] );
+
+			$columns = array();
+
+			foreach ( $model['columns'] as $column ) {
+				$line = sprintf( '  `%s` %s', $column['name'], $column['type'] );
+
+				if ( $column['name'] === $model['primaryKey'] ) {
+					$line .= ' PRIMARY KEY';
+				}
+
+				$comment = isset( $column['properties']->description ) ? $column['properties']->description : '';
+
+				if ( '' !== $comment ) {
+					$line .= ' -- ' . self::one_line( $comment );
+				}
+
+				$columns[] = $line;
+			}
+
+			$lines[] = implode( ",\n", $columns );
+			$lines[] = ');';
+
+			if ( '' !== $description ) {
+				$lines[] = '-- ' . self::one_line( $description );
+			}
+
+			$lines[] = '';
+		}
+
+		if ( ! empty( $mdl['relationships'] ) ) {
+			$lines[] = '-- How these tables join:';
+
+			foreach ( $mdl['relationships'] as $relationship ) {
+				$lines[] = sprintf( '--   %s (%s)', $relationship['condition'], strtolower( $relationship['joinType'] ) );
+			}
+		}
+
+		$text = implode( "\n", $lines );
+
+		/**
+		 * Filters the schema description handed to the model.
+		 *
+		 * @param string $text Schema as text.
+		 * @param array  $mdl  The model it was rendered from.
+		 */
+		$memo = apply_filters( 'wwd_schema_prompt', $text, $mdl );
+
+		return $memo;
+	}
+
+	/**
+	 * Collapse a description into a single comment line.
+	 *
+	 * @param string $text Description.
+	 * @return string
+	 */
+	protected static function one_line( $text ) {
+		return trim( preg_replace( '/\s+/', ' ', (string) $text ) );
+	}
+
+	/**
 	 * Columns that must never leave the database, as a flat list.
 	 *
 	 * @return array

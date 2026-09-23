@@ -1,6 +1,12 @@
 # Preparare Wren AI per il plugin
 
-Il plugin ha bisogno di un endpoint HTTP che parli la REST API di `wren-ai-service`:
+> **Serve solo se scegli il motore "Wren AI service".** Dalla 1.2.0 il plugin di default
+> chiama direttamente un modello linguistico e non ha bisogno di nessun servizio: basta una
+> API key in **Wren AI → Impostazioni**. Questa pagina riguarda l'altra strada, per chi
+> un'istanza di Wren AI ce l'ha già o la vuole.
+
+Con quel motore il plugin ha bisogno di un endpoint HTTP che parli la REST API di
+`wren-ai-service`:
 
 | Metodo | Rotta | A cosa serve |
 |---|---|---|

@@ -4,11 +4,11 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Ask anything about your WordPress data in plain language and get instant, saveable dashboards, powered by Wren AI.
+Ask anything about your WordPress data in plain language and get instant, saveable dashboards. One API key, no server.
 
 == Description ==
 
@@ -16,10 +16,13 @@ WP Wren Dashboards puts a question box on any page. Someone types "how many post
 publish each month this year?", and gets a chart, a table and a CSV — then saves it as a panel
 on a dashboard that anybody can embed with a shortcode.
 
-The plugin sends your database *structure* (never its contents) to a Wren AI instance you
-control, asks Wren to turn the question into SQL, validates that SQL against a strict
-read-only guard, runs it, and asks Wren for a chart specification which it renders as inline
+The plugin sends your database *structure* (never its contents) to a language model of your
+choosing, asks it to turn the question into SQL, validates that SQL against a strict read-only
+guard, runs it on your database, and asks for a chart specification which it renders as inline
 SVG — no external chart library, no CDN.
+
+Nothing to install anywhere: an API key is the whole setup, and Google AI Studio and Groq give
+one away. A Wren AI service can be used instead of the model, for sites that already run one.
 
 **Shortcodes**
 
@@ -40,16 +43,24 @@ and statement is logged.
 == Installation ==
 
 1. Upload the plugin to /wp-content/plugins/ and activate it.
-2. Run a Wren AI service reachable from your WordPress server (see docs/wren-ai-setup.md).
-   Wren AI → Settings → "Connect a server automatically" prints a single command that
-   installs one on any Ubuntu/Debian machine and fills the connection in by itself.
-3. Wren AI → Settings: check that the connection is green.
-4. Wren AI → Data & schema: pick the tables to share, add business context, deploy the schema.
-5. Put `[wren_ai_dashboard]` on a page.
+2. Wren AI → Settings: paste an API key (get a free one at aistudio.google.com/apikey) and
+   press "Test connection".
+3. Wren AI → Data & schema: pick the tables to share and add business context. Nothing to
+   deploy — the schema travels with every question.
+4. Put `[wren_ai_dashboard]` on a page.
+
+Prefer to run Wren AI? Pick that engine in Settings; deploy/README.md installs one on any
+Ubuntu/Debian machine with a single command.
 
 == Frequently Asked Questions ==
 
-= Which Wren AI version does this need? =
+= Which model does this need? =
+
+Any of: Google AI Studio (free tier, the default), Groq (free tier), OpenAI, or anything that
+speaks the OpenAI chat-completions API — Ollama and LM Studio included, so the model can run
+on your own hardware.
+
+= Which Wren AI version does this need, if I use that engine? =
 
 The REST API of wren-ai-service: Wren AI self-hosted "GenBI Classic" (the legacy/v1 branch and
 its Docker images) or Wren AI Cloud. The current agent-driven CLI on main does not expose that
@@ -58,8 +69,8 @@ HTTP service.
 = What leaves my site? =
 
 The question, the schema (table and column names, types, relationships, your descriptions) and
-a sample of at most 200 result rows used to design the chart. The sample can be disabled with
-the wwd_chart_sample_rows filter.
+a sample of the result rows used to design the chart — 30 by default, adjustable with the
+wwd_chart_sample_rows filter. Never the rest of your data: the SQL runs here.
 
 = Can visitors ask questions? =
 
@@ -67,6 +78,15 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.2.0 =
+* New default engine: the plugin asks a language model directly, so there is no service to
+  install, host or keep running, and no schema deployment step. A WordPress schema fits in a
+  prompt.
+* Providers: Google AI Studio, Groq, OpenAI, and any OpenAI-compatible endpoint (Ollama,
+  LM Studio, OpenRouter).
+* Wren AI remains available as an engine; sites already using it keep using it after the
+  upgrade.
 
 = 1.1.0 =
 * Pairing: generate a code in Settings, run the printed command on any Ubuntu/Debian machine,

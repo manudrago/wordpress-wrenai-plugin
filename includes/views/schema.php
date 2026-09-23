@@ -82,6 +82,21 @@ $wwd_core    = WWD_Settings::default_tables();
 		<?php submit_button( __( 'Save', 'wp-wren-dashboards' ) ); ?>
 	</form>
 
+	<?php if ( 'wren' !== $settings['engine'] ) : ?>
+
+	<h2 class="title"><?php esc_html_e( 'What the model is told', 'wp-wren-dashboards' ); ?></h2>
+	<p>
+		<?php esc_html_e( 'Nothing is deployed anywhere: this description travels with every question and is as current as your last save. It reads your table structure — never your content.', 'wp-wren-dashboards' ); ?>
+	</p>
+
+	<p>
+		<button type="button" class="button" id="wwd-preview-mdl"><?php esc_html_e( 'Show what is sent', 'wp-wren-dashboards' ); ?></button>
+	</p>
+
+	<pre class="wwd-mdl" id="wwd-mdl" hidden><?php echo esc_html( WWD_Schema::prompt_text() ); ?></pre>
+
+	<?php else : ?>
+
 	<h2 class="title"><?php esc_html_e( 'Deploy to Wren AI', 'wp-wren-dashboards' ); ?></h2>
 	<p><?php esc_html_e( 'Building the model reads your table structure — never your content — and sends it to Wren AI so it can plan queries against it.', 'wp-wren-dashboards' ); ?></p>
 
@@ -106,6 +121,8 @@ $wwd_core    = WWD_Settings::default_tables();
 	</p>
 
 	<pre class="wwd-mdl" id="wwd-mdl" hidden><?php echo esc_html( wp_json_encode( WWD_Schema::build_mdl(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+
+	<?php endif; ?>
 
 	<h2 class="title"><?php esc_html_e( 'Hardening', 'wp-wren-dashboards' ); ?></h2>
 	<p><?php esc_html_e( 'For the strongest setup, create a MySQL user with SELECT rights only on the shared tables and add its credentials to wp-config.php:', 'wp-wren-dashboards' ); ?></p>

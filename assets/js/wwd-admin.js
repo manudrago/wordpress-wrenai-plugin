@@ -317,9 +317,34 @@
 		} ).catch( function () {} );
 	}
 
+	// The settings form carries both engines; only the chosen one is shown.
+	function bindEngine() {
+		var radios = document.querySelectorAll( '[data-wwd-engine]' );
+		var panes = document.querySelectorAll( '[data-wwd-pane]' );
+
+		if ( ! radios.length ) {
+			return;
+		}
+
+		function show( engine ) {
+			Array.prototype.forEach.call( panes, function ( pane ) {
+				pane.hidden = pane.getAttribute( 'data-wwd-pane' ) !== engine;
+			} );
+		}
+
+		Array.prototype.forEach.call( radios, function ( radio ) {
+			radio.addEventListener( 'change', function () {
+				if ( radio.checked ) {
+					show( radio.value );
+				}
+			} );
+		} );
+	}
+
 	function boot() {
 		bindHealth();
 		bindSync();
+		bindEngine();
 		bindPairing();
 		bindPreview();
 		bindBulkSelect();

@@ -5,19 +5,23 @@ mostra un form dove chiunque sia autorizzato può **chiedere qualsiasi cosa sui 
 linguaggio naturale** e ottenere subito una risposta con **grafico + tabella**, salvabile come
 pannello di una **dashboard**.
 
-Il cervello è [Wren AI](https://github.com/Canner/WrenAI): il plugin gli manda lo schema del
-database (solo la struttura, mai i contenuti), gli passa la domanda, riceve l'SQL e lo
-spec del grafico, esegue la query in sola lettura su WordPress e disegna il risultato.
+Il cervello sta **fuori dal sito, ma non serve installare niente**: il plugin manda a un
+modello linguistico lo schema del database (solo la struttura, mai i contenuti) insieme alla
+domanda, riceve l'SQL, lo valida, lo esegue in sola lettura su WordPress e disegna il
+risultato. Una chiave di Google AI Studio (gratuita) e hai finito.
 
 ```
-Domanda ──▶ WP REST ──▶ Wren AI /v1/asks ──▶ SQL
+Domanda ──▶ WP REST ──▶ modello (domanda + schema) ──▶ SQL
                              │
                     guard SQL (solo SELECT, tabelle consentite, LIMIT)
                              │
-                        $wpdb ──▶ righe ──▶ Wren AI /v1/charts ──▶ Vega-Lite
+                        $wpdb ──▶ righe ──▶ modello (dati) ──▶ Vega-Lite
                                                     │
                                          renderer SVG incluso ──▶ grafico
 ```
+
+Chi ha già un'istanza di [Wren AI](https://github.com/Canner/WrenAI) può usarla al posto del
+modello diretto: si sceglie nelle impostazioni, il resto del plugin è identico.
 
 ---
 
@@ -26,7 +30,7 @@ Domanda ──▶ WP REST ──▶ Wren AI /v1/asks ──▶ SQL
 - [Cosa ottieni](#cosa-ottieni)
 - [Requisiti](#requisiti)
 - [Installazione](#installazione)
-- [Configurazione in 4 passi](#configurazione-in-4-passi)
+- [Configurazione in 3 passi](#configurazione-in-3-passi)
 - [Shortcode](#shortcode)
 - [Sicurezza](#sicurezza)
 - [Come funziona dentro](#come-funziona-dentro)
@@ -53,15 +57,17 @@ Domanda ──▶ WP REST ──▶ Wren AI /v1/asks ──▶ SQL
 
 - WordPress 6.0+, PHP 7.4+
 - MySQL 5.7+ / MariaDB 10.3+
-- Un'istanza di **Wren AI** raggiungibile via HTTP dal server WordPress
+- Una chiave API per un modello linguistico: **Google AI Studio** e **Groq** hanno un piano
+  gratuito, OpenAI è a consumo, e qualsiasi endpoint OpenAI-compatibile (Ollama, LM Studio,
+  OpenRouter) va bene. Nient'altro da installare.
 
-> **Nota sulle versioni di Wren AI.** Il plugin parla la REST API di `wren-ai-service`
-> (`/v1/asks`, `/v1/charts`, `/v1/semantics-preparations`). Quell'API è quella di
-> **Wren AI self-hosted "GenBI Classic"** (branch [`legacy/v1`](https://github.com/Canner/WrenAI/tree/legacy/v1),
-> tag `v1-final`, immagini Docker `ghcr.io/canner/wren-ai-service`) e di **Wren AI Cloud**.
-> Il `main` attuale di WrenAI è stato riorganizzato come CLI/SDK agent-driven (`pip install wrenai`)
-> e non espone quel servizio HTTP. Vedi [`docs/wren-ai-setup.md`](docs/wren-ai-setup.md) per
-> entrambe le strade.
+> **Se preferisci Wren AI.** Il plugin parla anche la REST API di `wren-ai-service`
+> (`/v1/asks`, `/v1/charts`, `/v1/semantics-preparations`): si sceglie *Wren AI service* nelle
+> impostazioni. Quell'API è quella di **Wren AI self-hosted "GenBI Classic"**
+> (branch [`legacy/v1`](https://github.com/Canner/WrenAI/tree/legacy/v1), tag `v1-final`,
+> immagini Docker `ghcr.io/canner/wren-ai-service`) e di **Wren AI Cloud**; il `main` attuale
+> di WrenAI è una CLI/SDK agent-driven che non espone quel servizio HTTP. Vedi
+> [`docs/wren-ai-setup.md`](docs/wren-ai-setup.md) e [`deploy/`](deploy/README.md).
 
 ## Installazione
 
@@ -84,74 +90,56 @@ Oppure genera lo zip da caricare da wp-admin (crea la cartella con il nome giust
 All'attivazione il plugin crea la tabella di log `{prefix}wwd_query_log` e il tipo di
 contenuto `wwd_dashboard`.
 
-## Configurazione in 4 passi
+## Configurazione in 3 passi
 
-### 1. Avvia Wren AI
+### 1. Metti una chiave del modello
 
-Il modo più rapido (Docker, GenBI Classic):
+**wp-admin → Wren AI → Impostazioni**, motore **"Un modello linguistico, chiamato da questo
+sito"** (è il default):
 
-```bash
-git clone -b legacy/v1 https://github.com/Canner/WrenAI.git wrenai
-cd wrenai/docker
-cp .env.example .env          # metti la tua OPENAI_API_KEY
-cp config.example.yaml config.yaml
-docker compose up -d
-# wren-ai-service risponde su http://localhost:5555
-```
-
-Dettagli, alternative (Ollama, modelli locali) e Wren AI Cloud: [`docs/wren-ai-setup.md`](docs/wren-ai-setup.md).
-
-**Non hai un server?** In **Wren AI → Impostazioni → "Collega un server
-automaticamente"** il plugin genera un comando da incollare su qualsiasi
-macchina Ubuntu/Debian — un VPS, un PC che hai già acceso, la vecchia VM.
-Quel comando installa Wren AI, la espone via tunnel Cloudflare (senza aprire
-porte e senza dominio) e **rimanda endpoint e API key qui da solo**: non c'è
-niente da copiare a mano, e se il tunnel cambia indirizzo lo ricomunica.
-
-Lo stesso installer si usa a mano, se preferisci:
-
-```bash
-sudo bash deploy/install-wren-ai.sh --llm google --llm-api-key AIza... \
-    --quick-tunnel --token "$(openssl rand -hex 16)"
-```
-
-Il modello può essere hosted con free tier (Google AI Studio, Groq) oppure
-locale con Ollama (`--llm ollama`, serve una macchina da 8 GB). In entrambi i
-casi i dati delle righe non escono: il plugin esegue l'SQL sul database
-WordPress, a Wren AI arrivano solo domanda e schema. Dettagli:
-[`deploy/README.md`](deploy/README.md).
-
-### 2. Collega il plugin
-
-**wp-admin → Wren AI → Impostazioni**
-
-| Campo | Valore tipico |
+| Campo | Valore |
 |---|---|
-| Endpoint | `http://localhost:5555` (o l'host raggiungibile dal server WP) |
-| API prefix | `/v1` — usa `/api/v1` per Wren AI Cloud |
-| API key | vuoto in locale, il token Bearer su Cloud |
+| Provider | Google AI Studio (gratuito), Groq (gratuito), OpenAI, o un endpoint OpenAI-compatibile |
+| API key | la chiave del provider — Google la regala su <https://aistudio.google.com/apikey> |
+| Modello | vuoto = il default del provider (`gemini-2.0-flash`) |
 | Lingua risposte | vuoto = lingua del sito |
 
-Premi **Test connessione**: deve diventare verde.
+Premi **Test connessione**: deve diventare verde. Non c'è nient'altro da installare, da
+nessuna parte.
 
-### 3. Scegli i dati e fai il deploy dello schema
+<details>
+<summary>Se invece usi un'istanza di Wren AI</summary>
+
+Scegli il motore **"Un servizio Wren AI"** e compila endpoint (`http://localhost:5555`),
+prefix (`/v1`, oppure `/api/v1` su Wren AI Cloud) e API key. In quel caso serve anche il
+deploy dello schema, descritto sotto.
+
+Non hai un server? Il riquadro **"Collega un server automaticamente"** genera un comando da
+incollare su qualsiasi macchina Ubuntu/Debian: installa Wren AI, la espone via tunnel
+Cloudflare e rimanda endpoint e API key al sito da solo. Dettagli in
+[`deploy/README.md`](deploy/README.md).
+
+</details>
+
+### 2. Scegli i dati
 
 **wp-admin → Wren AI → Dati & schema**
 
-- Seleziona le tabelle che Wren AI può vedere (di default: `posts`, `postmeta`, `terms`,
+- Seleziona le tabelle che il modello può vedere (di default: `posts`, `postmeta`, `terms`,
   `term_taxonomy`, `term_relationships`, `comments`).
 - Le colonne in *"Non esporre mai queste colonne"* (`user_pass`, `user_activation_key`,
-  `user_email`, …) vengono rimosse dal modello, rifiutate nell'SQL generato e mascherate nei
-  risultati.
+  `user_email`, …) vengono rimosse dalla descrizione dello schema, rifiutate nell'SQL generato
+  e mascherate nei risultati.
 - Scrivi il **contesto di business**: è la leva più forte sulla qualità delle risposte.
   Esempio: *"I prodotti sono post_type = 'product'; il prezzo è in postmeta con meta_key
   '_price'; un cliente attivo ha almeno un ordine negli ultimi 90 giorni."*
-- Premi **Costruisci e deploya lo schema**. Il plugin genera l'MDL (modello semantico) dal
-  database — solo struttura, mai contenuti — e lo indicizza su Wren AI.
+- Salva. **Niente deploy**: la descrizione dello schema viaggia con ogni domanda, quindi è
+  sempre aggiornata. Il bottone *"Mostra cosa viene inviato"* fa vedere esattamente cosa esce.
 
-Rifai il deploy ogni volta che cambi le tabelle condivise, il contesto o lo schema del sito.
+Con il motore Wren AI, invece, qui compare **Costruisci e deploya lo schema**, da rifare ogni
+volta che cambi tabelle, contesto o struttura del sito.
 
-### 4. Pubblica la pagina
+### 3. Pubblica la pagina
 
 Crea una pagina (es. `/analytics`) e inserisci:
 
@@ -238,7 +226,10 @@ di colonna.
 |---|---|
 | `includes/class-wwd-settings.php` | Opzioni, default, sanitizzazione |
 | `includes/class-wwd-schema.php` | Introspezione MySQL → MDL (modelli, colonne, relazioni, descrizioni delle tabelle WordPress) |
-| `includes/class-wwd-wren-client.php` | Client HTTP: `semantics-preparations`, `asks`, `charts`, `health` |
+| `includes/class-wwd-engine.php` | Il motore scelto: modello diretto o servizio Wren AI |
+| `includes/class-wwd-engine-direct.php` | Prompt e risposte del modello: domanda → SQL, dati → Vega-Lite |
+| `includes/class-wwd-model-client.php` | HTTP verso Google AI Studio o qualunque endpoint OpenAI-compatibile |
+| `includes/class-wwd-wren-client.php` | Client HTTP Wren AI: `semantics-preparations`, `asks`, `charts`, `health` |
 | `includes/class-wwd-sql-guard.php` | Normalizzazione (identificatori Wren → MySQL, `DATE_TRUNC` → `DATE_FORMAT`, cast) e validazione |
 | `includes/class-wwd-query-runner.php` | Esecuzione, mascheramento, cache, connessione read-only |
 | `includes/class-wwd-ask-session.php` | Macchina a stati della domanda: `generating_sql → running_query → generating_chart → done` |
@@ -247,8 +238,10 @@ di colonna.
 | `includes/class-wwd-dashboards.php` | CPT `wwd_dashboard` e pannelli |
 | `assets/js/wwd-chart.js` | Renderer Vega-Lite → SVG |
 
-Wren AI risponde in modo asincrono: il browser fa polling su `GET /ask/{id}` e ogni chiamata
-avanza la macchina a stati di un passo, così nessuna richiesta PHP resta appesa un minuto.
+Il browser fa polling su `GET /ask/{id}` e ogni chiamata avanza la macchina a stati di un
+passo, così nessuna richiesta PHP resta appesa un minuto. Il motore diretto risponde subito e
+attraversa due stati in un colpo solo; Wren AI risponde in modo asincrono e resta nello stesso
+stato finché il suo job non è pronto.
 
 ### Rotte REST
 

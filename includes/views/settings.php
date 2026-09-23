@@ -27,6 +27,25 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 			<p class="wwd-status" id="wwd-health"><?php esc_html_e( 'Not checked yet.', 'wp-wren-dashboards' ); ?></p>
 		</div>
 		<div>
+			<strong><?php esc_html_e( 'Engine', 'wp-wren-dashboards' ); ?></strong>
+			<p class="wwd-status">
+				<?php if ( 'wren' === $settings['engine'] ) : ?>
+					<?php esc_html_e( 'Wren AI service', 'wp-wren-dashboards' ); ?>
+				<?php else : ?>
+					<?php
+					$wwd_client = new WWD_Model_Client();
+
+					printf(
+						/* translators: 1: provider name, 2: model name. */
+						esc_html__( '%1$s, %2$s', 'wp-wren-dashboards' ),
+						esc_html( WWD_Model_Client::provider( $settings['model_provider'] )['label'] ),
+						esc_html( $wwd_client->model() )
+					);
+					?>
+				<?php endif; ?>
+			</p>
+		</div>
+		<div <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
 			<strong><?php esc_html_e( 'Semantic model', 'wp-wren-dashboards' ); ?></strong>
 			<p class="wwd-status">
 				<?php if ( $settings['mdl_hash'] ) : ?>
@@ -59,7 +78,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		</div>
 	</div>
 
-	<div class="wwd-pair-card">
+	<div class="wwd-pair-card wwd-engine-pane" data-wwd-pane="wren" <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
 		<h2><?php esc_html_e( 'Connect a server automatically', 'wp-wren-dashboards' ); ?></h2>
 		<p class="description">
 			<?php esc_html_e( 'Generate a command, paste it into a machine with Ubuntu or Debian, and it installs Wren AI and fills in the endpoint and API key below by itself. Nothing to copy back by hand.', 'wp-wren-dashboards' ); ?>
@@ -114,6 +133,84 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		<input type="hidden" name="wwd[_fields][]" value="log_queries">
 		<?php wp_nonce_field( 'wwd_save_settings' ); ?>
 
+		<h2 class="title"><?php esc_html_e( 'Where the thinking happens', 'wp-wren-dashboards' ); ?></h2>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Engine', 'wp-wren-dashboards' ); ?></th>
+				<td>
+					<fieldset>
+						<label class="wwd-engine-pick">
+							<input type="radio" name="wwd[engine]" value="direct" data-wwd-engine <?php checked( $settings['engine'], 'direct' ); ?>>
+							<strong><?php esc_html_e( 'A language model, called from this site', 'wp-wren-dashboards' ); ?></strong>
+							<span class="description"><?php esc_html_e( 'Nothing to install anywhere. The schema of a WordPress site fits in a prompt, so a question costs one call for the SQL and one for the chart. Add an API key below and you are done.', 'wp-wren-dashboards' ); ?></span>
+						</label>
+						<label class="wwd-engine-pick">
+							<input type="radio" name="wwd[engine]" value="wren" data-wwd-engine <?php checked( $settings['engine'], 'wren' ); ?>>
+							<strong><?php esc_html_e( 'A Wren AI service', 'wp-wren-dashboards' ); ?></strong>
+							<span class="description"><?php esc_html_e( 'A semantic layer with its own vector store, worth running when the schema is large or already modelled there. Needs a server and a deployed schema.', 'wp-wren-dashboards' ); ?></span>
+						</label>
+					</fieldset>
+				</td>
+			</tr>
+		</table>
+
+		<div class="wwd-engine-pane" data-wwd-pane="direct" <?php echo 'direct' === $settings['engine'] ? '' : 'hidden'; ?>>
+			<h2 class="title"><?php esc_html_e( 'Model', 'wp-wren-dashboards' ); ?></h2>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><label for="wwd-provider"><?php esc_html_e( 'Provider', 'wp-wren-dashboards' ); ?></label></th>
+					<td>
+						<select name="wwd[model_provider]" id="wwd-provider">
+							<?php foreach ( WWD_Model_Client::providers() as $wwd_id => $wwd_provider ) : ?>
+								<option value="<?php echo esc_attr( $wwd_id ); ?>" <?php selected( $settings['model_provider'], $wwd_id ); ?>>
+									<?php echo esc_html( $wwd_provider['label'] ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+						<?php $wwd_current = WWD_Model_Client::provider( $settings['model_provider'] ); ?>
+						<?php if ( $wwd_current['keys'] ) : ?>
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: link where the provider hands out API keys. */
+									esc_html__( 'Get a key at %s.', 'wp-wren-dashboards' ),
+									'<a href="' . esc_url( $wwd_current['keys'] ) . '" target="_blank" rel="noreferrer noopener">' . esc_html( wp_parse_url( $wwd_current['keys'], PHP_URL_HOST ) ) . '</a>'
+								);
+								?>
+							</p>
+						<?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="wwd-model-key"><?php esc_html_e( 'API key', 'wp-wren-dashboards' ); ?></label></th>
+					<td>
+						<input name="wwd[model_api_key]" id="wwd-model-key" type="password" class="regular-text code" autocomplete="off"
+							value="<?php echo esc_attr( $settings['model_api_key'] ); ?>">
+						<p class="description"><?php esc_html_e( 'Stored in this site\'s options table and sent only to the provider above.', 'wp-wren-dashboards' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="wwd-model-name"><?php esc_html_e( 'Model', 'wp-wren-dashboards' ); ?></label></th>
+					<td>
+						<input name="wwd[model_name]" id="wwd-model-name" type="text" class="regular-text code"
+							value="<?php echo esc_attr( $settings['model_name'] ); ?>"
+							placeholder="<?php echo esc_attr( $wwd_current['model'] ); ?>">
+						<p class="description"><?php esc_html_e( 'Empty uses the default for this provider.', 'wp-wren-dashboards' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="wwd-model-base"><?php esc_html_e( 'API base URL', 'wp-wren-dashboards' ); ?></label></th>
+					<td>
+						<input name="wwd[model_base]" id="wwd-model-base" type="url" class="regular-text code"
+							value="<?php echo esc_attr( $settings['model_base'] ); ?>"
+							placeholder="<?php echo esc_attr( $wwd_current['base'] ? $wwd_current['base'] : 'http://localhost:11434/v1' ); ?>">
+						<p class="description"><?php esc_html_e( 'Only for an OpenAI-compatible endpoint of your own. Empty uses the provider default.', 'wp-wren-dashboards' ); ?></p>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+		<div class="wwd-engine-pane" data-wwd-pane="wren" <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
 		<h2 class="title"><?php esc_html_e( 'Wren AI service', 'wp-wren-dashboards' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
@@ -150,6 +247,10 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 					<p class="description"><?php esc_html_e( 'Optional. Keeps this site\'s model separate when several projects share one Wren AI instance.', 'wp-wren-dashboards' ); ?></p>
 				</td>
 			</tr>
+		</table>
+		</div>
+
+		<table class="form-table" role="presentation">
 			<tr>
 				<th scope="row"><label for="wwd-timeout"><?php esc_html_e( 'Request timeout', 'wp-wren-dashboards' ); ?></label></th>
 				<td>

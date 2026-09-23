@@ -2,9 +2,10 @@
 /**
  * The lifecycle of a single question: text-to-SQL, execution, chart.
  *
- * Wren AI answers asynchronously, so the work is modelled as a small state
- * machine kept in a transient. Every poll from the browser advances it by one
- * step, which keeps each PHP request short instead of blocking for a minute.
+ * The work is a small state machine kept in a transient, advanced one step per
+ * poll from the browser, so no PHP request ever blocks for a minute. An engine
+ * that answers immediately simply moves two states in one poll; one that hands
+ * back a job to wait on stays in the same state until it is done.
  *
  * @package WP_Wren_Dashboards
  */
@@ -55,100 +56,55 @@ class WWD_Ask_Session {
 			return new WP_Error( 'wwd_long_question', __( 'That question is too long. Please shorten it.', 'wp-wren-dashboards' ) );
 		}
 
-		if ( '' === (string) WWD_Settings::get( 'mdl_hash' ) ) {
-			return new WP_Error( 'wwd_not_synced', __( 'The database schema has not been shared with Wren AI yet. An administrator has to run a schema sync first.', 'wp-wren-dashboards' ) );
-		}
-
-		$ready = self::ensure_model_ready();
+		$engine = WWD_Engine::make();
+		$ready  = $engine->ready();
 
 		if ( is_wp_error( $ready ) ) {
 			return $ready;
 		}
 
-		$client   = new WWD_Wren_Client();
-		$response = $client->ask( $question, $keep_thread ? self::thread() : array() );
+		$started = $engine->start_sql( $question, $keep_thread ? self::thread() : array() );
 
-		if ( is_wp_error( $response ) ) {
-			return $response;
-		}
-
-		if ( empty( $response['query_id'] ) ) {
-			return new WP_Error( 'wwd_no_query_id', __( 'Wren AI did not start the query.', 'wp-wren-dashboards' ) );
+		if ( is_wp_error( $started ) ) {
+			return $started;
 		}
 
 		$state = array(
-			'id'             => wp_generate_uuid4(),
-			'user_id'        => get_current_user_id(),
-			'question'       => $question,
-			'wren_query_id'  => (string) $response['query_id'],
-			'chart_query_id' => '',
-			'status'         => 'generating_sql',
-			'stage'          => __( 'Understanding the question…', 'wp-wren-dashboards' ),
-			'sql'            => '',
-			'reasoning'      => '',
-			'columns'        => array(),
-			'rows'           => array(),
-			'row_count'      => 0,
-			'truncated'      => false,
-			'duration'       => 0,
-			'chart'          => null,
-			'chart_type'     => '',
-			'chart_note'     => '',
-			'tables'         => array(),
-			'error'          => '',
-			'steps'          => 0,
-			'started'        => time(),
+			'id'         => wp_generate_uuid4(),
+			'user_id'    => get_current_user_id(),
+			'question'   => $question,
+			'job'        => (string) $started['job'],
+			'chart_job'  => '',
+			'status'     => 'generating_sql',
+			'stage'      => '' !== $started['stage'] ? $started['stage'] : __( 'Understanding the question…', 'wp-wren-dashboards' ),
+			'sql'        => '',
+			'reasoning'  => (string) $started['reasoning'],
+			'columns'    => array(),
+			'rows'       => array(),
+			'row_count'  => 0,
+			'truncated'  => false,
+			'duration'   => 0,
+			'chart'      => null,
+			'chart_type' => '',
+			'chart_note' => '',
+			'tables'     => array(),
+			'error'      => '',
+			'steps'      => 0,
+			'started'    => time(),
 		);
+
+		// An engine that answered outright leaves nothing to poll for: the
+		// next step is already running the statement.
+		if ( ! empty( $started['done'] ) ) {
+			$state['sql']    = (string) $started['sql'];
+			$state['status'] = 'running_query';
+			$state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+		}
 
 		$session = new self( $state );
 		$session->save();
 
 		return $session;
-	}
-
-	/**
-	 * Make sure the deployed model finished indexing.
-	 *
-	 * Deploying only hands the model to Wren AI; the indexing that follows can
-	 * fail on its own (an unreachable embedder, most often), and a question
-	 * asked against a half-built index simply hangs while it searches.
-	 *
-	 * @return true|WP_Error
-	 */
-	protected static function ensure_model_ready() {
-		if ( WWD_Settings::get( 'mdl_ready' ) ) {
-			return true;
-		}
-
-		$client = new WWD_Wren_Client();
-		$status = $client->semantics_status( (string) WWD_Settings::get( 'mdl_hash' ) );
-
-		if ( is_wp_error( $status ) ) {
-			return $status;
-		}
-
-		$state = isset( $status['status'] ) ? $status['status'] : '';
-
-		if ( 'finished' === $state ) {
-			WWD_Settings::update( array( 'mdl_ready' => 1 ) );
-
-			return true;
-		}
-
-		if ( 'indexing' === $state ) {
-			return new WP_Error( 'wwd_indexing', __( 'Wren AI is still indexing the database schema. Try again in a minute.', 'wp-wren-dashboards' ) );
-		}
-
-		$detail = isset( $status['error']['message'] ) ? (string) $status['error']['message'] : '';
-
-		return new WP_Error(
-			'wwd_index_failed',
-			sprintf(
-				/* translators: %s: error detail from Wren AI. */
-				__( 'Wren AI could not index the database schema, so questions cannot be answered yet. Deploy the schema again from Data & schema. %s', 'wp-wren-dashboards' ),
-				$detail
-			)
-		);
 	}
 
 	/**
@@ -222,7 +178,7 @@ class WWD_Ask_Session {
 		$max_steps = (int) apply_filters( 'wwd_max_poll_steps', self::MAX_STEPS );
 
 		if ( $this->state['steps'] > $max_steps ) {
-			return $this->fail( __( 'Wren AI took too long to answer. Please try a simpler question.', 'wp-wren-dashboards' ) );
+			return $this->fail( __( 'This question took too long to answer. Please try a simpler one.', 'wp-wren-dashboards' ) );
 		}
 
 		switch ( $this->state['status'] ) {
@@ -245,13 +201,12 @@ class WWD_Ask_Session {
 	}
 
 	/**
-	 * Poll the text-to-SQL job.
+	 * Advance the text-to-SQL job.
 	 *
 	 * @return void
 	 */
 	protected function poll_sql() {
-		$client = new WWD_Wren_Client();
-		$result = $client->ask_result( $this->state['wren_query_id'] );
+		$result = WWD_Engine::make()->poll_sql( $this->state['job'] );
 
 		if ( is_wp_error( $result ) ) {
 			$this->fail( $result->get_error_message() );
@@ -259,61 +214,19 @@ class WWD_Ask_Session {
 			return;
 		}
 
-		$status = isset( $result['status'] ) ? $result['status'] : '';
+		if ( '' !== $result['stage'] ) {
+			$this->state['stage'] = $result['stage'];
+		}
 
-		$stages = array(
-			'understanding' => __( 'Understanding the question…', 'wp-wren-dashboards' ),
-			'searching'     => __( 'Looking through your tables…', 'wp-wren-dashboards' ),
-			'planning'      => __( 'Planning the query…', 'wp-wren-dashboards' ),
-			'generating'    => __( 'Writing SQL…', 'wp-wren-dashboards' ),
-			'correcting'    => __( 'Checking the SQL…', 'wp-wren-dashboards' ),
-		);
-
-		if ( isset( $stages[ $status ] ) ) {
-			$this->state['stage'] = $stages[ $status ];
-
+		if ( empty( $result['done'] ) ) {
 			return;
 		}
 
-		if ( 'failed' === $status || 'stopped' === $status ) {
-			$message = __( 'Wren AI could not answer this question.', 'wp-wren-dashboards' );
-
-			if ( ! empty( $result['error']['message'] ) ) {
-				$message = (string) $result['error']['message'];
-			}
-
-			$this->fail( $message );
-
-			return;
+		if ( '' !== $result['reasoning'] ) {
+			$this->state['reasoning'] = $result['reasoning'];
 		}
 
-		if ( 'finished' !== $status ) {
-			return;
-		}
-
-		if ( ! empty( $result['sql_generation_reasoning'] ) ) {
-			$this->state['reasoning'] = (string) $result['sql_generation_reasoning'];
-		}
-
-		$sql = '';
-
-		if ( ! empty( $result['response'][0]['sql'] ) ) {
-			$sql = (string) $result['response'][0]['sql'];
-		}
-
-		if ( '' === $sql ) {
-			$message = __( 'Wren AI answered without a query, so there is nothing to chart. Try rephrasing the question in terms of your data.', 'wp-wren-dashboards' );
-
-			if ( ! empty( $result['error']['message'] ) ) {
-				$message = (string) $result['error']['message'];
-			}
-
-			$this->fail( $message );
-
-			return;
-		}
-
-		$this->state['sql']    = $sql;
+		$this->state['sql']    = $result['sql'];
 		$this->state['status'] = 'running_query';
 		$this->state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
 	}
@@ -369,56 +282,66 @@ class WWD_Ask_Session {
 			return;
 		}
 
-		$client = new WWD_Wren_Client();
-		$chart  = $client->chart( $this->state['question'], $result['sql'], $result['columns'], $result['rows'] );
+		$chart = WWD_Engine::make()->start_chart(
+			$this->state['question'],
+			$result['sql'],
+			$result['columns'],
+			$result['rows']
+		);
 
-		if ( is_wp_error( $chart ) || empty( $chart['query_id'] ) ) {
+		if ( is_wp_error( $chart ) ) {
 			// The data is already there; a missing chart is not a failed answer.
-			$this->state['status']     = 'done';
-			$this->state['stage']      = __( 'Done.', 'wp-wren-dashboards' );
-			$this->state['chart_note'] = is_wp_error( $chart ) ? $chart->get_error_message() : '';
+			$this->finish_chart( null, '', $chart->get_error_message() );
 
 			return;
 		}
 
-		$this->state['chart_query_id'] = (string) $chart['query_id'];
-		$this->state['status']         = 'generating_chart';
-		$this->state['stage']          = __( 'Designing the chart…', 'wp-wren-dashboards' );
+		if ( ! empty( $chart['done'] ) ) {
+			$this->finish_chart( $chart['chart'], $chart['chart_type'], $chart['note'] );
+
+			return;
+		}
+
+		$this->state['chart_job'] = (string) $chart['job'];
+		$this->state['status']    = 'generating_chart';
+		$this->state['stage']     = __( 'Designing the chart…', 'wp-wren-dashboards' );
 	}
 
 	/**
-	 * Poll the chart generation job.
+	 * Advance the chart job.
 	 *
 	 * @return void
 	 */
 	protected function poll_chart() {
-		$client = new WWD_Wren_Client();
-		$result = $client->chart_result( $this->state['chart_query_id'] );
+		$result = WWD_Engine::make()->poll_chart( $this->state['chart_job'] );
 
 		if ( is_wp_error( $result ) ) {
-			$this->state['status']     = 'done';
-			$this->state['stage']      = __( 'Done.', 'wp-wren-dashboards' );
-			$this->state['chart_note'] = $result->get_error_message();
+			$this->finish_chart( null, '', $result->get_error_message() );
 
 			return;
 		}
 
-		$status = isset( $result['status'] ) ? $result['status'] : '';
-
-		if ( in_array( $status, array( 'fetching', 'generating' ), true ) ) {
+		if ( empty( $result['done'] ) ) {
 			return;
 		}
 
-		if ( 'finished' === $status && ! empty( $result['response']['chart_schema'] ) ) {
-			$this->state['chart']      = $result['response']['chart_schema'];
-			$this->state['chart_type'] = isset( $result['response']['chart_type'] ) ? (string) $result['response']['chart_type'] : '';
-			$this->state['chart_note'] = isset( $result['response']['reasoning'] ) ? (string) $result['response']['reasoning'] : '';
-		} elseif ( ! empty( $result['error']['message'] ) ) {
-			$this->state['chart_note'] = (string) $result['error']['message'];
-		}
+		$this->finish_chart( $result['chart'], $result['chart_type'], $result['note'] );
+	}
 
-		$this->state['status'] = 'done';
-		$this->state['stage']  = __( 'Done.', 'wp-wren-dashboards' );
+	/**
+	 * Store whatever chart came back - including none - and finish.
+	 *
+	 * @param mixed  $chart Chart specification or null.
+	 * @param string $type  Chart type, when the engine names one.
+	 * @param string $note  Explanation, or the reason there is no chart.
+	 * @return void
+	 */
+	protected function finish_chart( $chart, $type, $note ) {
+		$this->state['chart']      = $chart;
+		$this->state['chart_type'] = (string) $type;
+		$this->state['chart_note'] = (string) $note;
+		$this->state['status']     = 'done';
+		$this->state['stage']      = __( 'Done.', 'wp-wren-dashboards' );
 	}
 
 	/**
@@ -443,9 +366,8 @@ class WWD_Ask_Session {
 	 * @return array
 	 */
 	public function stop() {
-		if ( 'generating_sql' === $this->state['status'] && $this->state['wren_query_id'] ) {
-			$client = new WWD_Wren_Client();
-			$client->stop_ask( $this->state['wren_query_id'] );
+		if ( 'generating_sql' === $this->state['status'] && $this->state['job'] ) {
+			WWD_Engine::make()->stop_sql( $this->state['job'] );
 		}
 
 		return $this->fail( __( 'Stopped.', 'wp-wren-dashboards' ) );

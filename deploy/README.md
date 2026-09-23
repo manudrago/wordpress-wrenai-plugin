@@ -1,5 +1,10 @@
 # Installare Wren AI e collegarlo al plugin
 
+> **Non è più obbligatorio.** Dalla 1.2.0 il plugin di default chiama direttamente un modello
+> (Google AI Studio, Groq, OpenAI, o un endpoint OpenAI-compatibile): niente server, niente
+> deploy dello schema, basta una API key nelle impostazioni. Quello che segue serve se vuoi
+> comunque Wren AI — semantic layer, vector store, il suo modo di ragionare sullo schema.
+
 `install-wren-ai.sh` gira su **qualsiasi macchina Ubuntu/Debian con root**: un
 VPS, un PC di casa, un Mac con una VM Linux, la vecchia istanza Oracle. Non c'è
 niente di specifico a un cloud.

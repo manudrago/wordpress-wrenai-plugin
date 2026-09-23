@@ -10,4 +10,6 @@ php tests/test-wren-payloads.php
 echo
 php tests/test-pairing.php
 echo
+php tests/test-direct-engine.php
+echo
 node tests/test-chart-renderer.js
