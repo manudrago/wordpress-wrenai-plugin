@@ -233,8 +233,8 @@ fetch_or_local() {
 	fi
 }
 
-INSTALLER_B64="$(fetch_or_local oracle-arm-install.sh | gzip -9 | base64 -w0)"
-GENERATOR_B64="$(fetch_or_local make-ollama-config.py | gzip -9 | base64 -w0)"
+INSTALLER_B64="$(fetch_or_local install-wren-ai.sh | gzip -9 | base64 -w0)"
+GENERATOR_B64="$(fetch_or_local make-wren-config.py | gzip -9 | base64 -w0)"
 
 ALLOW_ARG=""
 [[ -n "$WP_IP" ]] && ALLOW_ARG="--allow-ip ${WP_IP}"
@@ -246,18 +246,18 @@ exec > >(tee -a /var/log/wren-install.log) 2>&1
 set -x
 
 mkdir -p /opt/wren-deploy
-echo '${INSTALLER_B64}' | base64 -d | gunzip > /opt/wren-deploy/oracle-arm-install.sh
-echo '${GENERATOR_B64}' | base64 -d | gunzip > /opt/wren-deploy/make-ollama-config.py
-chmod +x /opt/wren-deploy/oracle-arm-install.sh
+echo '${INSTALLER_B64}' | base64 -d | gunzip > /opt/wren-deploy/install-wren-ai.sh
+echo '${GENERATOR_B64}' | base64 -d | gunzip > /opt/wren-deploy/make-wren-config.py
+chmod +x /opt/wren-deploy/install-wren-ai.sh
 
 # Oracle's Ubuntu images block everything but SSH by default; the installer
 # adds its own rules on top.
-if bash /opt/wren-deploy/oracle-arm-install.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}; then
+if bash /opt/wren-deploy/install-wren-ai.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}; then
 	date > /opt/wren-deploy/INSTALL_COMPLETE
 else
 	date > /opt/wren-deploy/INSTALL_FAILED
 	echo "Install failed. Fix the cause, then re-run:"
-	echo "  sudo bash /opt/wren-deploy/oracle-arm-install.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}"
+	echo "  sudo bash /opt/wren-deploy/install-wren-ai.sh --model '${MODEL}' --token '${TOKEN}' ${ALLOW_ARG}"
 fi
 CLOUDINIT
 )"

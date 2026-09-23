@@ -73,6 +73,27 @@ models:
 La configurazione completa (embedder, Qdrant, pipeline) è documentata nel repo:
 `wren-ai-service/docs/configuration.md` sul branch `legacy/v1`.
 
+### Farlo fare a uno script
+
+`deploy/install-wren-ai.sh` fa tutto quanto sopra su una macchina Ubuntu/Debian
+— Docker, checkout di `legacy/v1`, `config.yaml` generato per il provider che
+scegli, gateway autenticato e, se vuoi, tunnel Cloudflare — e stampa alla fine i
+valori da incollare nelle impostazioni del plugin:
+
+```bash
+sudo bash deploy/install-wren-ai.sh --llm google --llm-api-key AIza... \
+    --quick-tunnel --token "$(openssl rand -hex 16)"
+```
+
+| `--llm` | Modello | Chiave | RAM della macchina |
+|---|---|---|---|
+| `google` | `gemini/gemini-2.0-flash` + `gemini/text-embedding-004` | free tier su <https://aistudio.google.com/apikey> | 2 GB |
+| `groq` | `groq/llama-3.3-70b-versatile`, embedder locale | free tier su <https://console.groq.com/keys> | 3 GB |
+| `ollama` | `qwen2.5-coder:7b` + `nomic-embed-text`, tutto in locale | nessuna | 8 GB |
+| `openai` | `gpt-4.1-mini` + `text-embedding-3-large` | a consumo | 2 GB |
+
+Dettagli, alternative di hosting e manutenzione: [`deploy/README.md`](../deploy/README.md).
+
 ---
 
 ## Opzione B — Wren AI Cloud

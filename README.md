@@ -101,9 +101,20 @@ docker compose up -d
 
 Dettagli, alternative (Ollama, modelli locali) e Wren AI Cloud: [`docs/wren-ai-setup.md`](docs/wren-ai-setup.md).
 
-**Non hai un server?** [`deploy/`](deploy/README.md) contiene l'installazione
-automatica su una VM ARM gratuita di Oracle Cloud con Ollama: un comando nella
-Cloud Shell crea la macchina e installa tutto (zero costi, nessuna chiave OpenAI).
+**Non hai un server?** [`deploy/install-wren-ai.sh`](deploy/README.md) installa
+tutto su qualsiasi macchina Ubuntu/Debian — un VPS, un PC che hai già acceso, la
+vecchia VM — e la espone a WordPress via tunnel Cloudflare, senza aprire porte e
+senza dominio:
+
+```bash
+sudo bash install-wren-ai.sh --llm google --llm-api-key AIza... \
+    --quick-tunnel --token "$(openssl rand -hex 16)"
+```
+
+Il modello può essere hosted con free tier (Google AI Studio, Groq) oppure
+locale con Ollama (`--llm ollama`, serve una macchina da 8 GB). In entrambi i
+casi i dati delle righe non escono: il plugin esegue l'SQL sul database
+WordPress, a Wren AI arrivano solo domanda e schema.
 
 ### 2. Collega il plugin
 

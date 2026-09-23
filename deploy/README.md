@@ -1,109 +1,133 @@
-# Wren AI su Oracle Cloud (Always Free) con Ollama
+# Installare Wren AI e collegarlo al plugin
 
-Tutto gratis: VM ARM sempre accesa nel free tier di Oracle, modello locale via
-Ollama, nessuna chiave OpenAI. Due strade — la prima fa quasi tutto da sola.
+`install-wren-ai.sh` gira su **qualsiasi macchina Ubuntu/Debian con root**: un
+VPS, un PC di casa, un Mac con una VM Linux, la vecchia istanza Oracle. Non c'è
+niente di specifico a un cloud.
 
-Le immagini Docker di Wren AI sono pubblicate anche per `linux/arm64`, quindi
-girano sulle Ampere A1 di Oracle senza emulazione (verificato sul registry).
+Due decisioni, indipendenti tra loro:
+
+1. **Dove pensa il modello** — in locale con Ollama (gratis, serve una macchina
+   con 8 GB) oppure su un servizio hosted con free tier (Google AI Studio o
+   Groq: gratis, veloce, e la macchina può avere 2 GB).
+2. **Come ci arriva WordPress** — tunnel Cloudflare (nessuna porta aperta,
+   indirizzo `https://`, nessun dominio necessario) oppure porta aperta solo
+   all'IP del tuo server WordPress.
+
+> **Cosa esce dalla macchina.** Il plugin esegue le query **sul database
+> WordPress**, non le manda a Wren AI. A Wren AI (e quindi al modello) arrivano
+> solo la domanda e lo *schema*: nomi di tabelle, colonne e le descrizioni che
+> scrivi tu. I dati dei clienti, degli ordini, degli utenti restano dove sono.
+> Se anche quello schema non deve uscire, usa Ollama.
 
 ---
 
-## Strada A — un comando nella Cloud Shell (consigliata)
+## Strada consigliata: modello hosted gratuito + tunnel
 
-La Cloud Shell è il terminale dentro la console Oracle: la sua CLI è già
-autenticata come te, quindi non devi configurare chiavi API.
+Funziona su qualsiasi macchina da 2 GB, non apre porte, e risponde in pochi
+secondi invece che in minuti.
 
-1. Apri la console: <https://cloud.oracle.com/?region=uk-london-1>
-2. In alto a destra clicca l'icona **`>_`** (Cloud Shell) e aspetta il prompt.
-3. Porta lì i due file di questa cartella. O con git, se il repo è pubblico:
+1. Prendi una chiave gratuita su <https://aistudio.google.com/apikey>
+   (Google AI Studio, tier gratuito: nessuna carta di credito).
+2. Sulla macchina Linux:
 
    ```bash
    git clone https://github.com/manudrago/wordpress-wrenai-plugin.git
    cd wordpress-wrenai-plugin/deploy
+
+   sudo bash install-wren-ai.sh \
+       --llm google --llm-api-key AIza...LA_TUA_CHIAVE \
+       --quick-tunnel \
+       --token "$(openssl rand -hex 16)"
    ```
 
-   oppure con il menu **⋮ → Upload** della Cloud Shell, caricando
-   `oracle-create-vm.sh`, `oracle-arm-install.sh` e `make-ollama-config.py`.
+3. Alla fine lo script stampa **endpoint e token**. L'endpoint è del tipo
+   `https://qualcosa-di-random.trycloudflare.com`.
 
-4. Lancia (metti l'IP pubblico del server dove gira WordPress):
+Vuoi vedere prima cosa farebbe, senza toccare niente? `--dry-run` (funziona
+anche senza sudo).
 
-   ```bash
-   bash oracle-create-vm.sh --wp-ip 203.0.113.10
-   ```
+### Cosa sapere sul quick tunnel
 
-Lo script crea rete, regole, chiave SSH e istanza **4 OCPU / 24 GB / 100 GB**
-(l'intera quota Always Free ARM), e le passa un cloud-init che installa Docker,
-Ollama, i modelli e Wren AI da solo. Alla fine stampa **IP pubblico e token**.
-
-L'installazione a bordo richiede 15-30 minuti, quasi tutti spesi a scaricare i
-pesi del modello. Puoi seguirla:
-
-```bash
-ssh -i ~/.ssh/wren_ai ubuntu@IP 'tail -f /var/log/wren-install.log'
-```
-
-È pronta quando questo risponde `{"status":"ok"}`:
-
-```bash
-ssh -i ~/.ssh/wren_ai ubuntu@IP 'curl -s localhost:5555/health'
-```
-
-### Se dice "Out of host capacity"
-
-Non è un errore tuo: le ARM gratuite sono spesso esaurite. Lo script prova tutti
-gli availability domain della region e si ferma senza lasciare nulla a metà —
-rilancialo più tardi o prova un'altra region. Niente viene ricreato due volte.
+* L'indirizzo è casuale e **cambia a ogni riavvio del container** del tunnel.
+  Quando cambia, rimettilo nelle impostazioni del plugin:
+  `docker logs wren-tunnel | grep trycloudflare.com`.
+* Per un indirizzo stabile serve un tunnel *named*: crealo nel pannello
+  Cloudflare (Zero Trust → Networks → Tunnels), punta il public hostname a
+  `http://wren-gateway:8080` e installa con `--tunnel-token <token>`.
+* In entrambi i casi il traffico è HTTPS fino a Cloudflare, quindi il token non
+  viaggia in chiaro — cosa che invece succede con `--gateway-port 80`.
 
 ---
 
-## Strada B — VM creata a mano, installazione via script
+## Alternativa: porta aperta solo a WordPress
 
-Se preferisci cliccare nella console:
+Se la macchina ha un IP pubblico e preferisci non passare da Cloudflare:
 
-1. **Compute → Instances → Create instance**
-2. *Image and shape* → **Change shape** → **Ampere** → `VM.Standard.A1.Flex`,
-   **4 OCPU** e **24 GB** (dentro la quota gratuita).
-3. *Image* → **Canonical Ubuntu 24.04** (build `aarch64`).
-4. *Networking* → assegna un **IP pubblico**.
-5. *Add SSH keys* → carica la tua chiave pubblica.
-6. *Boot volume* → 100 GB.
-7. Crea, poi collegati e installa:
+```bash
+sudo bash install-wren-ai.sh \
+    --llm google --llm-api-key AIza... \
+    --gateway-port 80 --token "$(openssl rand -hex 16)" \
+    --allow-ip <IP_PUBBLICO_DEL_SERVER_WORDPRESS>
+```
 
-   ```bash
-   ssh ubuntu@IP
-   sudo apt-get update && sudo apt-get install -y git
-   git clone https://github.com/manudrago/wordpress-wrenai-plugin.git
-   cd wordpress-wrenai-plugin/deploy
-   sudo bash oracle-arm-install.sh --allow-ip <IP_DEL_SERVER_WORDPRESS> --token <SCEGLI_UN_SEGRETO>
-   ```
-
-8. Nella console, **Networking → VCN → Security List** della subnet: aggiungi
-   una ingress rule TCP sulla porta **8080** con *source* l'IP di WordPress.
+`--gateway-port 80` perché molti hosting condivisi lasciano uscire solo 80 e
+443: se il tuo WordPress può uscire su porte alte, `8080` va benissimo. Se il
+provider ha un suo firewall (security list Oracle, cloud firewall Hetzner,
+security group AWS) va aperta anche lì, sempre solo verso quell'IP.
 
 ---
 
-## Cosa fa `oracle-arm-install.sh`
+## Tutto in locale, senza servizi esterni
+
+```bash
+sudo bash install-wren-ai.sh --llm ollama --quick-tunnel --token "$(openssl rand -hex 16)"
+```
+
+Servono ~8 GB di RAM e ~20 GB di disco: scarica `qwen2.5-coder:7b` (chat) e
+`nomic-embed-text` (embedding). Senza GPU una domanda costa **30 secondi - 2
+minuti**; il plugin fa polling fino a ~12 minuti, quindi non va in timeout, ma
+l'esperienza è "chiedi e aspetta".
+
+Via di mezzo: `--llm groq --llm-api-key gsk_...` usa Groq (free tier, molto
+veloce) per il ragionamento e tiene in locale solo l'embedder, che è un modello
+da 274 MB e sulla CPU non si sente.
+
+---
+
+## Dove farlo girare
+
+| Opzione | Costo | Note |
+|---|---|---|
+| Una macchina che hai già accesa | 0 | Con `--quick-tunnel` non serve IP pubblico né aprire porte. Se si spegne, il plugin smette di rispondere. |
+| VPS piccolo (Hetzner CX22 / CAX11, ~4 €/mese) | ~4 €/mese | 4 GB: perfetto con modello hosted. Per Ollama serve il taglio da 8 GB. |
+| Oracle Cloud Always Free | 0 | Quello che avevi. Se recuperi l'accesso, `oracle-create-vm.sh` è ancora lì e funziona. |
+| Wren AI Cloud | a pagamento | Nessun server da gestire: nelle impostazioni del plugin metti il loro endpoint, prefix `/api/v1` e la tua API key. |
+
+---
+
+## Cosa fa `install-wren-ai.sh`
 
 | Passo | Dettaglio |
 |---|---|
 | Controlli | architettura (imposta `PLATFORM` di Docker), RAM, disco |
 | Docker | installazione ufficiale + plugin compose |
-| Ollama | installa, lo fa ascoltare su `0.0.0.0:11434` per i container, e **blocca quella porta a tutto tranne il bridge Docker** |
-| Modelli | `qwen2.5-coder:7b` (chat) e `nomic-embed-text` (embedding, 768 dim) |
-| Wren AI | clona `legacy/v1` in `/opt/wrenai`, imposta `PLATFORM=linux/arm64` nel `.env` |
-| `config.yaml` | generato da `make-ollama-config.py` a partire dall'esempio ufficiale della versione |
+| Ollama | solo se serve: installa, ascolta su `0.0.0.0:11434` per i container, e **blocca quella porta a tutto tranne il bridge Docker** |
+| Wren AI | clona `legacy/v1` in `/opt/wrenai`, scrive `.env` (piattaforma, porta, chiavi del provider) |
+| `config.yaml` | generato da `make-wren-config.py` a partire dall'esempio ufficiale della versione |
 | Avvio | solo `qdrant` + `wren-ai-service`: il plugin esegue l'SQL da sé, quindi UI/engine/ibis resterebbero a consumare RAM per nulla |
+| SQL validator | nginx da 10 MB che risponde al dry-run che Wren AI fa su ogni SQL prima di restituirlo (senza, ogni domanda finisce in `NO_RELEVANT_SQL`) |
 | Gateway | con `--token`, un nginx davanti che pretende `Authorization: Bearer <token>` |
-| Firewall | apre la porta **solo** all'IP passato con `--allow-ip` |
+| Tunnel | con `--quick-tunnel` o `--tunnel-token`, un `cloudflared` che espone il gateway senza aprire porte |
+| Firewall | con `--allow-ip`, apre la porta **solo** a quell'indirizzo |
 
-`make-ollama-config.py` riscrive **solo** le sezioni `llm`, `embedder` e
+`make-wren-config.py` riscrive **solo** le sezioni `llm`, `embedder` e
 `document_store`; `engine` e le 34 `pipes` vengono copiate dall'esempio ufficiale
 della versione che hai clonato — se ne manca una, il servizio non parte.
 
-Applica anche un tuning pensato per la CPU: disattiva intent classification,
-sql-generation reasoning e functions retrieval. Sono chiamate LLM extra per ogni
-domanda: trascurabili su un modello hosted, pesanti su quattro core ARM. Per
-tenere il comportamento originale: `--no-cpu-tuning`.
+Applica anche un tuning: disattiva intent classification, sql-generation
+reasoning e functions retrieval. Sono chiamate LLM extra per ogni domanda:
+pesanti su CPU, e su un free tier sono la differenza tra rispondere e sbattere
+nel rate limit. Per il comportamento originale: `--full-pipeline`.
 
 ---
 
@@ -113,32 +137,24 @@ tenere il comportamento originale: `--no-cpu-tuning`.
 
 | Campo | Valore |
 |---|---|
-| Endpoint | `http://IP_DELLA_VM:8080` (`:5555` se non hai usato `--token`) |
+| Endpoint | quello stampato dallo script (`https://...trycloudflare.com`, oppure `http://IP:porta`) |
 | API prefix | `/v1` |
-| API key | il token stampato dallo script |
+| API key | il token che hai passato a `--token` |
 | Timeout richiesta | 30 secondi |
 
 → **Test connessione**: deve diventare verde.
 
 **Wren AI → Dati & schema**: scegli le tabelle, scrivi il contesto di business,
-premi **Costruisci e deploya lo schema**. Il primo deploy fa passare ogni colonna
-dall'embedder: su CPU mettici qualche minuto. Aspetta lo stato `finished`.
+premi **Costruisci e deploya lo schema**, aspetta lo stato `finished`. Con un
+embedder hosted sono secondi; con Ollama su CPU qualche minuto.
 
 Poi metti `[wren_ai_dashboard]` in una pagina e prova.
 
+**Cambiare server non richiede di toccare il plugin**: si aggiornano endpoint e
+API key, si rifà il deploy dello schema (l'indice vettoriale vive sul server
+Wren AI, quindi il nuovo non sa ancora niente del tuo database) e si riparte.
+
 ---
-
-## Aspettative oneste sulle prestazioni
-
-Senza GPU, un 7B quantizzato fa circa 5-15 token/s. Ogni domanda sono due
-chiamate al modello (SQL e grafico), quindi **30 secondi - 2 minuti a domanda**,
-contro i ~5-10 secondi di un modello hosted. Il plugin fa polling e regge fino a
-~12 minuti per domanda (`wwd_max_poll_steps`), quindi non va in timeout, ma
-l'esperienza è "chiedi e aspetta", non istantanea.
-
-Con 24 GB puoi passare a `phi4:14b` (`--model phi4:14b`): SQL più affidabile,
-circa il doppio del tempo. Se un giorno vuoi velocità, cambiare `config.yaml` per
-puntare a un provider hosted è questione di due righe.
 
 ## Manutenzione
 
@@ -147,10 +163,14 @@ cd /opt/wrenai/docker
 docker compose ps
 docker compose logs -f wren-ai-service
 docker compose restart wren-ai-service
-ollama ps                    # modello caricato e RAM occupata
-free -h
+
+docker logs wren-tunnel | grep trycloudflare.com   # indirizzo attuale del tunnel
+docker ps --format '{{.Names}}\t{{.Status}}'       # gateway, validator, tunnel
+ollama ps                                          # solo se usi Ollama
 ```
 
-Dopo un cambio di modello (`ollama pull ...` + modifica di `config.yaml`) va
-rifatto il deploy dello schema dal plugin: cambiando embedder cambia la
-dimensione dei vettori e l'indice va ricostruito.
+Cambiare modello di **embedding** cambia la dimensione dei vettori: dopo va
+sempre rifatto il deploy dello schema dal plugin.
+
+Ri-lanciare lo script è sicuro: ogni passo controlla prima di agire. È il modo
+normale per cambiare provider, token o modo di esporlo.
