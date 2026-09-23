@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -39,9 +39,11 @@ and statement is logged.
 
 == Installation ==
 
-1. Run a Wren AI service reachable from your WordPress server (see docs/wren-ai-setup.md).
-2. Upload the plugin to /wp-content/plugins/ and activate it.
-3. Wren AI → Settings: set the endpoint and test the connection.
+1. Upload the plugin to /wp-content/plugins/ and activate it.
+2. Run a Wren AI service reachable from your WordPress server (see docs/wren-ai-setup.md).
+   Wren AI → Settings → "Connect a server automatically" prints a single command that
+   installs one on any Ubuntu/Debian machine and fills the connection in by itself.
+3. Wren AI → Settings: check that the connection is green.
 4. Wren AI → Data & schema: pick the tables to share, add business context, deploy the schema.
 5. Put `[wren_ai_dashboard]` on a page.
 
@@ -65,6 +67,14 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.1.0 =
+* Pairing: generate a code in Settings, run the printed command on any Ubuntu/Debian machine,
+  and the endpoint and API key arrive by themselves. A server behind a Cloudflare quick tunnel
+  keeps reporting its address, so a restarted tunnel no longer breaks the connection.
+* The installer in deploy/ is no longer Oracle-specific and can use a free hosted model
+  (Google AI Studio, Groq) instead of a local one, which brings the requirement down to a
+  2 GB machine.
 
 = 1.0.0 =
 * First release: ask form, chart and table rendering, saved dashboards, schema deployment,

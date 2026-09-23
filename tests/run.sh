@@ -8,4 +8,6 @@ php tests/test-sql-guard.php
 echo
 php tests/test-wren-payloads.php
 echo
+php tests/test-pairing.php
+echo
 node tests/test-chart-renderer.js

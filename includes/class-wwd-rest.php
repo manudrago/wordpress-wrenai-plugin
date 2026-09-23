@@ -137,6 +137,70 @@ class WWD_REST {
 			)
 		);
 
+		/*
+		 * Pairing. The public route is the only one here without a capability
+		 * check: it is gated by a single-use code an administrator generates,
+		 * because the caller is a freshly installed server that has no
+		 * WordPress account.
+		 */
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/pair',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'pair' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'code'       => array(
+						'required' => true,
+						'type'     => 'string',
+					),
+					'endpoint'   => array(
+						'required' => true,
+						'type'     => 'string',
+					),
+					'api_key'    => array( 'type' => 'string' ),
+					'api_prefix' => array( 'type' => 'string' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/pair/open',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'pair_open' ),
+				'permission_callback' => array( $this, 'can_manage' ),
+				'args'                => array(
+					'refresh' => array(
+						'type'    => 'boolean',
+						'default' => true,
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/pair/close',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'pair_close' ),
+				'permission_callback' => array( $this, 'can_manage' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/pair/status',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'pair_status' ),
+				'permission_callback' => array( $this, 'can_manage' ),
+			)
+		);
+
 		register_rest_route(
 			self::NAMESPACE_V1,
 			'/health',
@@ -425,6 +489,167 @@ class WWD_REST {
 		}
 
 		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Store the endpoint and token of a server that just installed itself.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function pair( WP_REST_Request $request ) {
+		if ( ! $this->pair_attempt_allowed() ) {
+			return $this->error(
+				new WP_Error(
+					'wwd_pair_rate_limited',
+					__( 'Too many pairing attempts. Try again later.', 'wp-wren-dashboards' ),
+					array( 'status' => 429 )
+				)
+			);
+		}
+
+		$claim = WWD_Pairing::claim( (string) $request->get_param( 'code' ) );
+
+		if ( is_wp_error( $claim ) ) {
+			return $this->error( $claim );
+		}
+
+		$endpoint = self::clean_endpoint( (string) $request->get_param( 'endpoint' ) );
+
+		if ( '' === $endpoint ) {
+			return $this->error(
+				new WP_Error(
+					'wwd_pair_bad_endpoint',
+					__( 'The endpoint must be an http:// or https:// URL.', 'wp-wren-dashboards' ),
+					array( 'status' => 400 )
+				)
+			);
+		}
+
+		/*
+		 * Whatever was indexed lives on the server being left behind.
+		 * Forgetting the deployment is the honest state: the screens then say
+		 * "not deployed yet" instead of showing a model this endpoint has
+		 * never heard of.
+		 */
+		$values = array(
+			'endpoint'        => $endpoint,
+			'mdl_hash'        => '',
+			'mdl_deployed_at' => 0,
+			'mdl_ready'       => 0,
+		);
+
+		if ( null !== $request->get_param( 'api_key' ) ) {
+			$values['api_key'] = trim( sanitize_text_field( (string) $request->get_param( 'api_key' ) ) );
+		}
+
+		if ( $request->get_param( 'api_prefix' ) ) {
+			$prefix = '/' . trim( sanitize_text_field( (string) $request->get_param( 'api_prefix' ) ), '/' );
+
+			$values['api_prefix'] = '/' === $prefix ? '/v1' : $prefix;
+		}
+
+		WWD_Settings::update( $values );
+		WWD_Pairing::note_success( $endpoint );
+
+		return rest_ensure_response(
+			array(
+				'ok'       => true,
+				'site'     => home_url(),
+				'endpoint' => $endpoint,
+				'schema'   => 'deploy',
+				'next'     => admin_url( 'admin.php?page=wwd-schema' ),
+			)
+		);
+	}
+
+	/**
+	 * Issue a pairing code.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public function pair_open( WP_REST_Request $request ) {
+		$opened = WWD_Pairing::open( (bool) $request->get_param( 'refresh' ) );
+
+		return rest_ensure_response(
+			array(
+				'code'     => $opened['code'],
+				'expires'  => $opened['expires'],
+				'pair_url' => rest_url( self::NAMESPACE_V1 . '/pair' ),
+			)
+		);
+	}
+
+	/**
+	 * Shut pairing.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function pair_close() {
+		WWD_Pairing::close();
+
+		return rest_ensure_response( array( 'ok' => true ) );
+	}
+
+	/**
+	 * Whether a server has reported in yet.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function pair_status() {
+		$state = WWD_Pairing::state();
+
+		return rest_ensure_response(
+			array(
+				'open'      => WWD_Pairing::is_open(),
+				'expires'   => (int) $state['expires'],
+				'paired_at' => (int) $state['paired_at'],
+				'endpoint'  => (string) $state['endpoint'],
+			)
+		);
+	}
+
+	/**
+	 * An endpoint the plugin is willing to call.
+	 *
+	 * Deliberately more permissive than wp_http_validate_url(): a Wren AI on
+	 * the same machine is the common case, and that is exactly the private
+	 * address range that function rejects.
+	 *
+	 * @param string $url Raw URL.
+	 * @return string Empty when unusable.
+	 */
+	protected static function clean_endpoint( $url ) {
+		$url    = trim( $url );
+		$parts  = wp_parse_url( $url );
+		$scheme = isset( $parts['scheme'] ) ? strtolower( $parts['scheme'] ) : '';
+
+		if ( ! in_array( $scheme, array( 'http', 'https' ), true ) || empty( $parts['host'] ) ) {
+			return '';
+		}
+
+		return untrailingslashit( esc_url_raw( $url ) );
+	}
+
+	/**
+	 * Cheap per-address cap on pairing attempts, so a leaked site URL cannot
+	 * be used to grind through codes.
+	 *
+	 * @return bool
+	 */
+	protected function pair_attempt_allowed() {
+		$address = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+		$key     = 'wwd_pair_' . md5( $address );
+		$hits    = (int) get_transient( $key );
+
+		if ( $hits >= 30 ) {
+			return false;
+		}
+
+		set_transient( $key, $hits + 1, HOUR_IN_SECONDS );
+
+		return true;
 	}
 
 	/**

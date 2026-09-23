@@ -101,20 +101,25 @@ docker compose up -d
 
 Dettagli, alternative (Ollama, modelli locali) e Wren AI Cloud: [`docs/wren-ai-setup.md`](docs/wren-ai-setup.md).
 
-**Non hai un server?** [`deploy/install-wren-ai.sh`](deploy/README.md) installa
-tutto su qualsiasi macchina Ubuntu/Debian — un VPS, un PC che hai già acceso, la
-vecchia VM — e la espone a WordPress via tunnel Cloudflare, senza aprire porte e
-senza dominio:
+**Non hai un server?** In **Wren AI → Impostazioni → "Collega un server
+automaticamente"** il plugin genera un comando da incollare su qualsiasi
+macchina Ubuntu/Debian — un VPS, un PC che hai già acceso, la vecchia VM.
+Quel comando installa Wren AI, la espone via tunnel Cloudflare (senza aprire
+porte e senza dominio) e **rimanda endpoint e API key qui da solo**: non c'è
+niente da copiare a mano, e se il tunnel cambia indirizzo lo ricomunica.
+
+Lo stesso installer si usa a mano, se preferisci:
 
 ```bash
-sudo bash install-wren-ai.sh --llm google --llm-api-key AIza... \
+sudo bash deploy/install-wren-ai.sh --llm google --llm-api-key AIza... \
     --quick-tunnel --token "$(openssl rand -hex 16)"
 ```
 
 Il modello può essere hosted con free tier (Google AI Studio, Groq) oppure
 locale con Ollama (`--llm ollama`, serve una macchina da 8 GB). In entrambi i
 casi i dati delle righe non escono: il plugin esegue l'SQL sul database
-WordPress, a Wren AI arrivano solo domanda e schema.
+WordPress, a Wren AI arrivano solo domanda e schema. Dettagli:
+[`deploy/README.md`](deploy/README.md).
 
 ### 2. Collega il plugin
 
@@ -238,6 +243,7 @@ di colonna.
 | `includes/class-wwd-query-runner.php` | Esecuzione, mascheramento, cache, connessione read-only |
 | `includes/class-wwd-ask-session.php` | Macchina a stati della domanda: `generating_sql → running_query → generating_chart → done` |
 | `includes/class-wwd-rest.php` | Rotte `/wp-json/wren-ai/v1/*` |
+| `includes/class-wwd-pairing.php` | Codici di pairing: generazione, scadenza, verifica |
 | `includes/class-wwd-dashboards.php` | CPT `wwd_dashboard` e pannelli |
 | `assets/js/wwd-chart.js` | Renderer Vega-Lite → SVG |
 
@@ -257,6 +263,16 @@ avanza la macchina a stati di un passo, così nessuna richiesta PHP resta appesa
 | `GET` | `/wren-ai/v1/dashboards/{id}/panels/{panel}/data` | capability "chiedi" |
 | `POST` | `/wren-ai/v1/schema/sync` | `manage_options` |
 | `GET` | `/wren-ai/v1/schema/status`, `/health` | `manage_options` |
+| `POST` | `/wren-ai/v1/pair/open`, `/pair/close` | `manage_options` |
+| `GET` | `/wren-ai/v1/pair/status` | `manage_options` |
+| `POST` | `/wren-ai/v1/pair` | codice di pairing valido |
+
+`/pair` è l'unica rotta senza capability: chi chiama è un server appena
+installato, che un account WordPress non ce l'ha. Al posto della capability c'è
+un codice da 128 bit che genera l'amministratore, salvato solo come hash, valido
+un'ora, che si brucia dopo 10 tentativi sbagliati; le richieste sono limitate a
+30 all'ora per indirizzo. Accetta solo `endpoint` (http/https) e `api_key`, e
+dimentica lo schema deployato, perché vive sul server che stai lasciando.
 
 ## Hook per sviluppatori
 

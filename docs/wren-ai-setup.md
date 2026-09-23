@@ -94,6 +94,24 @@ sudo bash deploy/install-wren-ai.sh --llm google --llm-api-key AIza... \
 
 Dettagli, alternative di hosting e manutenzione: [`deploy/README.md`](../deploy/README.md).
 
+### Farselo configurare dal server
+
+Con `--pair-url` e `--pair-code` l'installer manda endpoint e API key al plugin
+appena il servizio risponde, e non devi copiare niente. I due valori li genera
+**Wren AI → Impostazioni → "Collega un server automaticamente"**, che stampa
+direttamente il comando completo.
+
+Dietro a un quick tunnel installa anche un timer (`wren-pair-refresh.timer`) che
+ricomunica l'indirizzo quando Cloudflare ne assegna uno nuovo, così un riavvio
+del tunnel non rompe più il collegamento. Per fermarlo:
+
+```bash
+sudo systemctl disable --now wren-pair-refresh.timer
+```
+
+oppure chiudi il pairing dalla pagina delle impostazioni: al primo rifiuto il
+timer si disattiva da solo.
+
 ---
 
 ## Opzione B — Wren AI Cloud

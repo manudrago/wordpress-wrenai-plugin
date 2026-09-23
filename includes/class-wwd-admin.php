@@ -13,6 +13,11 @@ defined( 'ABSPATH' ) || exit;
 class WWD_Admin {
 
 	/**
+	 * Raw URL of the one-line installer offered on the settings screen.
+	 */
+	const BOOTSTRAP_URL = 'https://raw.githubusercontent.com/manudrago/wordpress-wrenai-plugin/main/deploy/bootstrap.sh';
+
+	/**
 	 * Hook everything.
 	 *
 	 * @return void
@@ -67,15 +72,26 @@ class WWD_Admin {
 			'wwd-admin',
 			'WWD_ADMIN',
 			array(
-				'root'  => esc_url_raw( rest_url( WWD_REST::NAMESPACE_V1 ) ),
-				'nonce' => wp_create_nonce( 'wp_rest' ),
-				'i18n'  => array(
+				'root'      => esc_url_raw( rest_url( WWD_REST::NAMESPACE_V1 ) ),
+				'nonce'     => wp_create_nonce( 'wp_rest' ),
+				/**
+				 * Where the one-line installer is fetched from. Point this at
+				 * your own copy if you would rather not call GitHub.
+				 *
+				 * @param string $url Raw URL of deploy/bootstrap.sh.
+				 */
+				'bootstrap' => apply_filters( 'wwd_bootstrap_url', WWD_Admin::BOOTSTRAP_URL ),
+				'i18n'      => array(
 					'checking'  => __( 'Checking…', 'wp-wren-dashboards' ),
 					'syncing'   => __( 'Sending the schema to Wren AI…', 'wp-wren-dashboards' ),
 					'indexing'  => __( 'Wren AI is indexing the schema…', 'wp-wren-dashboards' ),
 					'synced'    => __( 'Schema deployed. You can start asking questions.', 'wp-wren-dashboards' ),
 					'failed'    => __( 'Failed', 'wp-wren-dashboards' ),
 					'connected' => __( 'Connected to Wren AI', 'wp-wren-dashboards' ),
+					'waiting'   => __( 'Waiting for the server to report in…', 'wp-wren-dashboards' ),
+					'paired'    => __( 'Server connected. Reloading…', 'wp-wren-dashboards' ),
+					'pairOff'   => __( 'Pairing closed.', 'wp-wren-dashboards' ),
+					'expired'   => __( 'The code expired before any server used it.', 'wp-wren-dashboards' ),
 				),
 			)
 		);

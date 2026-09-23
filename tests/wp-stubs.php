@@ -190,6 +190,20 @@ function update_option( $name, $value, $autoload = null ) {
 	return true;
 }
 
+/**
+ * Option remover.
+ *
+ * @param string $name Option name.
+ * @return bool
+ */
+function delete_option( $name ) {
+	global $wwd_options;
+
+	unset( $wwd_options[ $name ] );
+
+	return true;
+}
+
 $wwd_cache = array();
 
 /**

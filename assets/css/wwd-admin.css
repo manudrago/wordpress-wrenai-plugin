@@ -140,3 +140,38 @@
 	display: inline-block;
 	margin: 1rem 0;
 }
+
+.wwd-pair-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-left: 4px solid #2271b1;
+	border-radius: 6px;
+	padding: .4rem 1.2rem 1rem;
+	margin: 0 0 1.5rem;
+	max-width: 60em;
+}
+
+.wwd-pair-card h2 {
+	margin-bottom: .2rem;
+}
+
+.wwd-pair-card .form-table th {
+	width: 14rem;
+}
+
+#wwd-pair-command {
+	width: 100%;
+	font-size: 12px;
+	line-height: 1.5;
+	background: #1d2327;
+	color: #f0f0f1;
+	border-radius: 4px;
+	white-space: pre;
+	overflow-x: auto;
+}
+
+#wwd-pair-status {
+	display: inline-block;
+	margin-left: .6rem;
+	vertical-align: middle;
+}

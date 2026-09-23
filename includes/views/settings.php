@@ -59,6 +59,53 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		</div>
 	</div>
 
+	<div class="wwd-pair-card">
+		<h2><?php esc_html_e( 'Connect a server automatically', 'wp-wren-dashboards' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'Generate a command, paste it into a machine with Ubuntu or Debian, and it installs Wren AI and fills in the endpoint and API key below by itself. Nothing to copy back by hand.', 'wp-wren-dashboards' ); ?>
+		</p>
+
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><label for="wwd-pair-key"><?php esc_html_e( 'Google AI Studio key', 'wp-wren-dashboards' ); ?></label></th>
+				<td>
+					<input type="text" id="wwd-pair-key" class="regular-text code" placeholder="AIza… (<?php esc_attr_e( 'optional', 'wp-wren-dashboards' ); ?>)" autocomplete="off">
+					<p class="description">
+						<?php
+						printf(
+							/* translators: %s: link to Google AI Studio. */
+							esc_html__( 'Free at %s, no credit card. With a key the server needs 2 GB of RAM and answers in seconds; without one it installs a local model and needs 8 GB.', 'wp-wren-dashboards' ),
+							'<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer noopener">aistudio.google.com/apikey</a>'
+						);
+						?>
+					</p>
+					<p class="description"><?php esc_html_e( 'The key is only written into the command shown below. It is never stored on this site.', 'wp-wren-dashboards' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Address updates', 'wp-wren-dashboards' ); ?></th>
+				<td>
+					<label>
+						<input type="checkbox" id="wwd-pair-refresh" checked>
+						<?php esc_html_e( 'Let that server correct the endpoint when it changes', 'wp-wren-dashboards' ); ?>
+					</label>
+					<p class="description"><?php esc_html_e( 'A Cloudflare quick tunnel gets a new address every time it restarts. With this on, the server reports the new one and the setup keeps working; the code stays valid while the server keeps reporting in, and you can close it here at any time.', 'wp-wren-dashboards' ); ?></p>
+				</td>
+			</tr>
+		</table>
+
+		<p>
+			<button type="button" class="button button-primary" id="wwd-pair-open"><?php esc_html_e( 'Generate the command', 'wp-wren-dashboards' ); ?></button>
+			<button type="button" class="button" id="wwd-pair-close" hidden><?php esc_html_e( 'Close pairing', 'wp-wren-dashboards' ); ?></button>
+			<span class="wwd-status" id="wwd-pair-status"></span>
+		</p>
+
+		<div id="wwd-pair-output" hidden>
+			<textarea class="wwd-copy code" id="wwd-pair-command" rows="5" readonly></textarea>
+			<p class="description"><?php esc_html_e( 'Run it as root on the machine that will host Wren AI. It takes a few minutes; this page notices on its own when the server reports in.', 'wp-wren-dashboards' ); ?></p>
+		</div>
+	</div>
+
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 		<input type="hidden" name="action" value="wwd_save_settings">
 		<input type="hidden" name="wwd_redirect" value="wwd">

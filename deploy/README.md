@@ -21,6 +21,33 @@ Due decisioni, indipendenti tra loro:
 
 ---
 
+## Il modo più corto: un comando generato da WordPress
+
+**Wren AI → Impostazioni → "Collega un server automaticamente"**: incolli la
+chiave di Google AI Studio (gratuita, la prendi qui sotto), premi *Genera il
+comando* e ottieni una riga sola da incollare come root sulla macchina.
+
+Quella riga installa tutto, apre un tunnel Cloudflare e **rimanda endpoint e
+API key a WordPress da sola**: non devi copiare niente a mano, la pagina delle
+impostazioni si riempie e si ricarica quando il server si fa vivo.
+
+Il codice di pairing:
+
+* vale **un'ora** e viaggia solo dentro il comando che hai generato;
+* è salvato sul sito solo come hash, mai in chiaro;
+* si brucia da solo dopo 10 tentativi sbagliati;
+* resta valido finché il server continua a farsi vivo, **solo** se lasci
+  spuntato *"Consenti a quel server di correggere l'endpoint"* — serve perché
+  il quick tunnel cambia indirizzo a ogni riavvio, e un timer sulla macchina
+  ricomunica quello nuovo entro 5 minuti. Puoi chiuderlo quando vuoi con
+  *Chiudi pairing*.
+
+Se preferisci fare a mano, o non vuoi che la macchina parli con WordPress,
+tutto il resto di questa pagina funziona esattamente come prima: il pairing è
+`--pair-url` + `--pair-code`, ed è opzionale.
+
+---
+
 ## Strada consigliata: modello hosted gratuito + tunnel
 
 Funziona su qualsiasi macchina da 2 GB, non apre porte, e risponde in pochi
@@ -118,6 +145,7 @@ da 274 MB e sulla CPU non si sente.
 | SQL validator | nginx da 10 MB che risponde al dry-run che Wren AI fa su ogni SQL prima di restituirlo (senza, ogni domanda finisce in `NO_RELEVANT_SQL`) |
 | Gateway | con `--token`, un nginx davanti che pretende `Authorization: Bearer <token>` |
 | Tunnel | con `--quick-tunnel` o `--tunnel-token`, un `cloudflared` che espone il gateway senza aprire porte |
+| Pairing | con `--pair-url` e `--pair-code`, manda endpoint e token al plugin; con il quick tunnel installa anche un timer che ricomunica l'indirizzo quando cambia |
 | Firewall | con `--allow-ip`, apre la porta **solo** a quell'indirizzo |
 
 `make-wren-config.py` riscrive **solo** le sezioni `llm`, `embedder` e
@@ -161,6 +189,7 @@ Wren AI, quindi il nuovo non sa ancora niente del tuo database) e si riparte.
 ```bash
 cd /opt/wrenai/docker
 docker compose ps
+systemctl status wren-pair-refresh.timer           # chi comunica l'indirizzo a WordPress
 docker compose logs -f wren-ai-service
 docker compose restart wren-ai-service
 

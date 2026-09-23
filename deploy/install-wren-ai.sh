@@ -44,6 +44,8 @@ SKIP_MODELS="no"
 DRY_RUN="no"
 TUNNEL_TOKEN=""
 QUICK_TUNNEL="no"
+PAIR_URL=""
+PAIR_CODE=""
 
 usage() {
 	cat <<'USAGE'
@@ -82,6 +84,14 @@ Reaching it from WordPress
                     the WordPress host only allows standard ports outbound -
                     plenty of shared hosting does. Ignored when tunnelling.
 
+Telling WordPress about it
+  --pair-url URL    The plugin's pairing route, https://<site>/wp-json/wren-ai/v1/pair.
+  --pair-code CODE  The code that route is expecting. Generate both in
+                    wp-admin under Wren AI -> Settings -> "Connect a server
+                    automatically", which prints this whole command for you.
+                    With a quick tunnel a timer also reports the new address
+                    whenever the tunnel restarts, so the setup survives it.
+
 Other
   --dry-run         Print what would be installed and stop, without touching
                     the machine. Works without sudo.
@@ -104,6 +114,8 @@ while [[ $# -gt 0 ]]; do
 		--gateway-port) GATEWAY_PORT="$2"; shift 2 ;;
 		--tunnel-token) TUNNEL_TOKEN="$2"; shift 2 ;;
 		--quick-tunnel) QUICK_TUNNEL="yes"; shift ;;
+		--pair-url) PAIR_URL="$2"; shift 2 ;;
+		--pair-code) PAIR_CODE="$2"; shift 2 ;;
 		--dir) WREN_DIR="$2"; shift 2 ;;
 		--skip-models) SKIP_MODELS="yes"; shift ;;
 		--dry-run) DRY_RUN="yes"; shift ;;
@@ -283,6 +295,12 @@ else
 fi
 
 info "reachable via : ${EXPOSURE}"
+
+if [[ -n "$PAIR_URL" && -n "$PAIR_CODE" ]]; then
+	info "reports back to: ${PAIR_URL}"
+elif [[ -n "$PAIR_URL" || -n "$PAIR_CODE" ]]; then
+	die "--pair-url and --pair-code go together. wp-admin prints both."
+fi
 
 [[ -n "$TOKEN" ]] || warn "No --token: anyone who finds the address can query your data. Pass one."
 
@@ -766,7 +784,132 @@ if [[ -z "$PUBLIC_URL" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 9. What to do next
+# 9. Tell WordPress where we are
+# ---------------------------------------------------------------------------
+
+PAIRED="no"
+
+pair_once() {
+	local url="$1" code="$2" endpoint="$3" token="$4"
+	local body status
+
+	body="$(jq -n --arg c "$code" --arg e "$endpoint" --arg k "$token" \
+		'{code: $c, endpoint: $e, api_key: $k, api_prefix: "/v1"}')"
+
+	status="$(curl -sS -m 30 -o /tmp/wren-pair-response -w '%{http_code}' \
+		-X POST -H 'Content-Type: application/json' \
+		--data-binary "$body" "$url" 2>/dev/null || echo 000)"
+
+	[[ "$status" == "200" ]]
+}
+
+if [[ -n "$PAIR_URL" && -n "$PAIR_CODE" ]]; then
+	step "Telling WordPress where to find this server"
+
+	if pair_once "$PAIR_URL" "$PAIR_CODE" "$PUBLIC_URL" "$TOKEN"; then
+		PAIRED="yes"
+		info "endpoint and API key stored in WordPress"
+	else
+		warn "WordPress did not accept the pairing (HTTP $(cat /tmp/wren-pair-response 2>/dev/null | head -c 200))."
+		warn "The code may have expired, or this machine cannot reach ${PAIR_URL}."
+		warn "Generate a new code in wp-admin, or fill the settings in by hand with the values below."
+	fi
+
+	rm -f /tmp/wren-pair-response
+
+	# A quick tunnel gets a different address every time it restarts, which
+	# would silently break the plugin. A small timer reports the current one.
+	if [[ "$QUICK_TUNNEL" == "yes" ]]; then
+		mkdir -p /var/lib/wren-pair
+
+		umask 077
+		cat > /etc/wren-pair.conf <<CONF
+PAIR_URL='${PAIR_URL}'
+PAIR_CODE='${PAIR_CODE}'
+WREN_TOKEN='${TOKEN}'
+CONF
+		umask 022
+
+		cat > /usr/local/bin/wren-pair-refresh <<'REFRESH'
+#!/usr/bin/env bash
+# Report the current quick-tunnel address to WordPress when it changes, and
+# once in a while anyway so the pairing code stays alive.
+set -euo pipefail
+
+CONF=/etc/wren-pair.conf
+STATE=/var/lib/wren-pair/last
+
+[[ -r "$CONF" ]] || exit 0
+# shellcheck source=/dev/null
+. "$CONF"
+
+URL="$(docker logs wren-tunnel 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true)"
+
+[[ -n "$URL" ]] || exit 0
+
+LAST=""
+[[ -f "$STATE" ]] && LAST="$(cat "$STATE")"
+
+STALE="yes"
+
+if [[ -f "$STATE" ]] && [[ $(( $(date +%s) - $(stat -c %Y "$STATE") )) -lt 900 ]]; then
+	STALE="no"
+fi
+
+if [[ "$URL" == "$LAST" && "$STALE" == "no" ]]; then
+	exit 0
+fi
+
+BODY="$(jq -n --arg c "$PAIR_CODE" --arg e "$URL" --arg k "$WREN_TOKEN" \
+	'{code: $c, endpoint: $e, api_key: $k, api_prefix: "/v1"}')"
+
+if curl -sS -m 30 -o /dev/null -f -X POST -H 'Content-Type: application/json' \
+	--data-binary "$BODY" "$PAIR_URL"; then
+	printf '%s' "$URL" > "$STATE"
+	touch "$STATE"
+else
+	# A rejected code means the administrator closed pairing: stop nagging.
+	systemctl disable --now wren-pair-refresh.timer >/dev/null 2>&1 || true
+fi
+REFRESH
+
+		chmod 755 /usr/local/bin/wren-pair-refresh
+
+		cat > /etc/systemd/system/wren-pair-refresh.service <<'UNIT'
+[Unit]
+Description=Report the Wren AI tunnel address to WordPress
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wren-pair-refresh
+UNIT
+
+		cat > /etc/systemd/system/wren-pair-refresh.timer <<'UNIT'
+[Unit]
+Description=Keep WordPress pointed at the current Wren AI tunnel address
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=wren-pair-refresh.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+		systemctl daemon-reload
+		systemctl enable --now wren-pair-refresh.timer >/dev/null 2>&1 || true
+
+		[[ "$PAIRED" == "yes" ]] && printf '%s' "$PUBLIC_URL" > /var/lib/wren-pair/last
+
+		info "a timer will report a new tunnel address within 5 minutes of it changing"
+		info "stop it with: systemctl disable --now wren-pair-refresh.timer"
+	fi
+fi
+
+# ---------------------------------------------------------------------------
+# 10. What to do next
 # ---------------------------------------------------------------------------
 
 cat <<SUMMARY
@@ -778,7 +921,11 @@ $(printf '\033[1;32m')Done.$(printf '\033[0m')
   Embedder       : ${EMBED_MODEL_ID} (${EMBEDDING_DIM} dims)
   Stack          : ${DOCKER_DIR}
 
-In WordPress, under Wren AI -> Settings:
+$(if [[ "$PAIRED" == "yes" ]]; then
+	printf 'WordPress already has these - the settings screen filled itself in:\n'
+else
+	printf 'In WordPress, under Wren AI -> Settings:\n'
+fi)
 
   Endpoint   : ${PUBLIC_URL}
   API prefix : /v1

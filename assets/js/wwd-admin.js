@@ -195,9 +195,132 @@
 		} );
 	}
 
+	// The command is handed to the user to paste into a root shell, so nothing
+	// that is not an API key gets to travel inside it.
+	function safeKey( value ) {
+		return String( value || '' ).replace( /[^A-Za-z0-9._-]/g, '' );
+	}
+
+	function pairCommand( data, key ) {
+		var lines = [
+			'curl -fsSL ' + config.bootstrap + ' | sudo bash -s -- \\',
+			'    --pair-url ' + data.pair_url + ' \\',
+			'    --pair-code ' + data.code
+		];
+
+		if ( key ) {
+			lines[ lines.length - 1 ] += ' \\';
+			lines.push( '    --llm google --llm-api-key ' + key );
+		}
+
+		return lines.join( '\n' );
+	}
+
+	function bindPairing() {
+		var openButton = document.getElementById( 'wwd-pair-open' );
+		var closeButton = document.getElementById( 'wwd-pair-close' );
+		var output = document.getElementById( 'wwd-pair-output' );
+		var command = document.getElementById( 'wwd-pair-command' );
+		var keyInput = document.getElementById( 'wwd-pair-key' );
+		var refreshInput = document.getElementById( 'wwd-pair-refresh' );
+		var statusNode = document.getElementById( 'wwd-pair-status' );
+		var timer = null;
+		var since = 0;
+
+		if ( ! openButton ) {
+			return;
+		}
+
+		function stop() {
+			if ( timer ) {
+				window.clearTimeout( timer );
+				timer = null;
+			}
+		}
+
+		function poll() {
+			request( '/pair/status' ).then( function ( data ) {
+				if ( data.paired_at && data.paired_at > since ) {
+					stop();
+					status( statusNode, t( 'paired' ), 'ok' );
+
+					// Endpoint and key are in the database now; the form above
+					// still shows the old ones.
+					window.setTimeout( function () {
+						window.location.reload();
+					}, 1200 );
+
+					return;
+				}
+
+				if ( ! data.open ) {
+					stop();
+					status( statusNode, t( 'expired' ), 'warn' );
+
+					return;
+				}
+
+				timer = window.setTimeout( poll, 4000 );
+			} ).catch( function () {
+				timer = window.setTimeout( poll, 8000 );
+			} );
+		}
+
+		function watch() {
+			stop();
+			status( statusNode, t( 'waiting' ) );
+			poll();
+		}
+
+		openButton.addEventListener( 'click', function () {
+			openButton.disabled = true;
+
+			request( '/pair/open', {
+				method: 'POST',
+				body: { refresh: refreshInput ? refreshInput.checked : true }
+			} ).then( function ( data ) {
+				since = 0;
+				command.value = pairCommand( data, safeKey( keyInput && keyInput.value ) );
+				output.hidden = false;
+				closeButton.hidden = false;
+				command.focus();
+				command.select();
+				watch();
+			} ).catch( function ( error ) {
+				status( statusNode, error.message, 'bad' );
+			} ).then( function () {
+				openButton.disabled = false;
+			} );
+		} );
+
+		closeButton.addEventListener( 'click', function () {
+			request( '/pair/close', { method: 'POST' } ).then( function () {
+				stop();
+				output.hidden = true;
+				closeButton.hidden = true;
+				status( statusNode, t( 'pairOff' ) );
+			} ).catch( function ( error ) {
+				status( statusNode, error.message, 'bad' );
+			} );
+		} );
+
+		// A pairing opened before this page was loaded is still worth
+		// watching: the command may be running in another window right now.
+		request( '/pair/status' ).then( function ( data ) {
+			if ( ! data.open ) {
+				return;
+			}
+
+			since = data.paired_at || 0;
+			closeButton.hidden = false;
+			watch();
+		} ).catch( function () {} );
+	}
+
 	function boot() {
 		bindHealth();
 		bindSync();
+		bindPairing();
 		bindPreview();
 		bindBulkSelect();
 		bindCopy();
