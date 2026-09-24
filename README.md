@@ -101,7 +101,7 @@ sito"** (è il default):
 |---|---|
 | Provider | Google AI Studio (gratuito), Groq (gratuito), OpenAI, o un endpoint OpenAI-compatibile |
 | API key | la chiave del provider — Google la regala su <https://aistudio.google.com/apikey> |
-| Modello | vuoto = il default del provider (`gemini-2.0-flash`) |
+| Modello | vuoto = il default del provider (`gemini-3.6-flash`) |
 | Lingua risposte | vuoto = lingua del sito |
 
 Premi **Test connessione**: deve diventare verde. Non c'è nient'altro da installare, da

@@ -63,7 +63,7 @@ class WWD_Model_Client {
 			'google' => array(
 				'label' => __( 'Google AI Studio (free tier)', 'wp-wren-dashboards' ),
 				'base'  => 'https://generativelanguage.googleapis.com/v1beta',
-				'model' => 'gemini-2.0-flash',
+				'model' => 'gemini-3.6-flash',
 				'keys'  => 'https://aistudio.google.com/apikey',
 				'shape' => 'google',
 			),
@@ -407,13 +407,16 @@ class WWD_Model_Client {
 		}
 
 		if ( 404 === $code ) {
+			// Providers retire models on their own schedule, so the default
+			// shipped with any release eventually goes stale. The message
+			// usually names the replacement: say where to put it.
 			return new WP_Error(
 				'wwd_model_unknown',
 				sprintf(
 					/* translators: 1: model name, 2: provider message. */
-					__( 'The provider does not know the model "%1$s": %2$s', 'wp-wren-dashboards' ),
+					__( 'The provider does not know the model "%1$s": %2$s Put a current model name in the Model field under Wren AI → Settings.', 'wp-wren-dashboards' ),
 					$this->model,
-					$detail
+					rtrim( $detail, '.' ) . '.'
 				)
 			);
 		}

@@ -93,7 +93,7 @@ sudo bash deploy/install-wren-ai.sh --llm google --llm-api-key AIza... \
 
 | `--llm` | Modello | Chiave | RAM della macchina |
 |---|---|---|---|
-| `google` | `gemini/gemini-2.0-flash` + `gemini/text-embedding-004` | free tier su <https://aistudio.google.com/apikey> | 2 GB |
+| `google` | `gemini/gemini-3.6-flash` + `gemini/text-embedding-004` | free tier su <https://aistudio.google.com/apikey> | 2 GB |
 | `groq` | `groq/llama-3.3-70b-versatile`, embedder locale | free tier su <https://console.groq.com/keys> | 3 GB |
 | `ollama` | `qwen2.5-coder:7b` + `nomic-embed-text`, tutto in locale | nessuna | 8 GB |
 | `openai` | `gpt-4.1-mini` + `text-embedding-3-large` | a consumo | 2 GB |

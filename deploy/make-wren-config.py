@@ -21,7 +21,7 @@ passing different model ids:
 
     # Google AI Studio (free tier)
     python3 make-wren-config.py config.example.yaml \\
-        --llm-model gemini/gemini-2.0-flash --llm-api-key-name GEMINI_API_KEY \\
+        --llm-model gemini/gemini-3.6-flash --llm-api-key-name GEMINI_API_KEY \\
         --embed-model gemini/text-embedding-004 --embed-api-key-name GEMINI_API_KEY \\
         --embedding-dim 768 --output config.yaml
 
@@ -111,7 +111,7 @@ def trim_pipeline(settings: dict, engine_timeout: int) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", help="path to the stock config.example.yaml")
-    parser.add_argument("--llm-model", required=True, help="LiteLLM model id, e.g. gemini/gemini-2.0-flash")
+    parser.add_argument("--llm-model", required=True, help="LiteLLM model id, e.g. gemini/gemini-3.6-flash")
     parser.add_argument("--llm-api-base", default="", help="only for self-hosted or OpenAI-compatible endpoints")
     parser.add_argument("--llm-api-key-name", default="", help="name of the .env variable holding the key")
     parser.add_argument("--embed-model", required=True, help="LiteLLM embedding model id")

@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,11 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.2.1 =
+* Google retired gemini-2.0-flash: the default is now gemini-3.6-flash. Any provider's model
+  can be overridden in Settings, and an unknown-model error now says where to put the
+  replacement the provider names.
 
 = 1.2.0 =
 * New default engine: the plugin asks a language model directly, so there is no service to

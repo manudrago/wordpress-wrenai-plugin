@@ -57,7 +57,7 @@ Model
                     | openai (paid). Default: ollama.
   --llm-api-key KEY Key for a hosted --llm. Required unless --llm ollama.
   --model NAME      Override the model. Defaults per provider:
-                    ollama qwen2.5-coder:7b | google gemini-2.0-flash
+                    ollama qwen2.5-coder:7b | google gemini-3.6-flash
                     groq llama-3.3-70b-versatile | openai gpt-4.1-mini
   --embedder-provider NAME
                     ollama | google | openai. Defaults to --llm, except with
@@ -224,7 +224,7 @@ case "$LLM_PROVIDER" in
 		LLM_API_BASE="$OLLAMA_URL"
 		;;
 	google)
-		MODEL="${MODEL:-gemini-2.0-flash}"
+		MODEL="${MODEL:-gemini-3.6-flash}"
 		LLM_MODEL_ID="gemini/${MODEL}"
 		LLM_KEY_NAME="GEMINI_API_KEY"
 		;;

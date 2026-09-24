@@ -109,7 +109,7 @@ answer_with( 'google', '{"sql":"SELECT 1 LIMIT 1","explanation":"one"}' );
 $engine->start_sql( 'how many posts?', array() );
 $sent = WWD_Test_HTTP::$last;
 
-check( 'Google is called on generateContent', false !== strpos( $sent['url'], '/models/gemini-2.0-flash:generateContent' ), $sent['url'] );
+check( 'Google is called on generateContent', false !== strpos( $sent['url'], '/models/gemini-3.6-flash:generateContent' ), $sent['url'] );
 check( 'the key travels in a header, not the URL', 'test-key' === $sent['headers']['x-goog-api-key'] && false === strpos( $sent['url'], 'test-key' ) );
 check( 'JSON mode is asked for', 'application/json' === $sent['body']['generationConfig']['responseMimeType'] );
 check( 'the model is told not to guess', 0 === $sent['body']['generationConfig']['temperature'] );
