@@ -91,7 +91,8 @@ function findByClass( node, className, found ) {
 	found = found || [];
 
 	node.children.forEach( function ( child ) {
-		var classes = String( child.className || '' ).split( ' ' );
+		// HTML nodes carry className; SVG ones only have the class attribute.
+		var classes = String( child.className || child.attributes[ 'class' ] || '' ).split( ' ' );
 
 		if ( classes.indexOf( className ) !== -1 ) {
 			found.push( child );
@@ -173,6 +174,7 @@ var bar = chart.render(
 check( 'draws a bar per category', bar && findAll( bar, 'rect' ).length === 3, bar ? findAll( bar, 'rect' ).length : 'null' );
 check( 'keeps the chart title', bar && findByClass( bar, 'wwd-chart__title' ).length === 1 );
 check( 'labels every bar for hover', bar && findAll( bar, 'title' ).length === 3 );
+check( 'prints the value above each bar when there is room', bar && findByClass( bar, 'wwd-value' ).length === 3 );
 
 // 2. Line chart over months.
 var line = chart.render(
@@ -284,6 +286,53 @@ check( 'falls back when the spec names unknown fields', chart.render(
 	[ [ '2026-01', 3 ] ]
 ) === null );
 check( 'falls back on an empty result set', chart.render( { mark: 'bar', encoding: {} }, [ 'a' ], [] ) === null );
+
+// 8b. Many categories with long names: the chart turns on its side rather than
+// rotating labels into a smear, and the long tail becomes one row.
+var cities = [
+	[ 'Dubai', 26 ], [ 'Abu Dhabi', 16 ], [ 'Noida', 2 ], [ 'Sharjah', 2 ],
+	[ 'Al Rahmaniya', 1 ], [ 'Ajman', 1 ], [ 'شيراز', 1 ], [ 'gshsh', 1 ],
+	[ 'Al Ain City', 1 ], [ 'عجمان', 1 ], [ 'Ras Al Khaimah', 1 ], [ 'Fujairah', 1 ],
+	[ 'Umm Al Quwain', 1 ], [ 'Doha', 1 ], [ 'Riyadh', 1 ], [ 'Kuwait City', 1 ]
+];
+
+var spread = chart.render(
+	{ mark: 'bar', encoding: { x: { field: 'city', type: 'nominal' }, y: { field: 'customers', type: 'quantitative' } } },
+	[ 'city', 'customers' ],
+	cities,
+	{ otherLabel: 'Everything else', otherNote: 'The %d smallest are grouped together.' }
+);
+
+check( 'turns a wide category chart on its side', spread && spread.className.indexOf( 'wwd-chart--horizontal' ) !== -1 );
+check( 'never rotates a label there', spread && findAll( spread, 'text' ).every( function ( node ) {
+	return ! node.attributes.transform;
+} ) );
+check( 'caps the number of bars', spread && findAll( spread, 'rect' ).length === 14, spread ? findAll( spread, 'rect' ).length : 'null' );
+check( 'gathers the tail into one bar', spread && findByClass( spread, 'wwd-bar--other' ).length === 1 );
+check( 'says how many were gathered', spread && /\b3\b/.test( findByClass( spread, 'wwd-chart__note' )[ 0 ].textContent ), spread ? findByClass( spread, 'wwd-chart__note' )[ 0 ].textContent : '' );
+check( 'prints the value at the end of each bar', spread && findByClass( spread, 'wwd-value' ).length === 14 );
+check( 'puts the biggest first', spread && findAll( spread, 'title' )[ 0 ].textContent.indexOf( 'Dubai' ) === 0, spread ? findAll( spread, 'title' )[ 0 ].textContent : '' );
+
+// Few categories stay upright, and so does anything ordered by time.
+var fewCities = chart.render(
+	{ mark: 'bar', encoding: { x: { field: 'city', type: 'nominal' }, y: { field: 'customers', type: 'quantitative' } } },
+	[ 'city', 'customers' ],
+	[ [ 'Dubai', 26 ], [ 'Abu Dhabi', 16 ], [ 'Sharjah', 2 ] ]
+);
+
+check( 'leaves a short category chart upright', fewCities && fewCities.className.indexOf( 'wwd-chart--horizontal' ) === -1 );
+
+var months = chart.render(
+	{ mark: 'bar', encoding: { x: { field: 'month', type: 'temporal' }, y: { field: 'posts', type: 'quantitative' } } },
+	[ 'month', 'posts' ],
+	[
+		[ '2026-01', 3 ], [ '2026-02', 9 ], [ '2026-03', 4 ], [ '2026-04', 7 ],
+		[ '2026-05', 2 ], [ '2026-06', 8 ], [ '2026-07', 5 ], [ '2026-08', 6 ],
+		[ '2026-09', 1 ], [ '2026-10', 4 ], [ '2026-11', 3 ], [ '2026-12', 2 ]
+	]
+);
+
+check( 'never reorders a chart that runs over time', months && months.className.indexOf( 'wwd-chart--horizontal' ) === -1 );
 
 // 9. The table view.
 var table = chart.table( [ 'a', 'b' ], [ [ 1, 'x' ], [ 2, 'y' ] ] );

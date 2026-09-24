@@ -15,6 +15,7 @@
 	--wwd-accent-fg: #fff;
 	--wwd-radius: 10px;
 	--wwd-surface: #f6f7f7;
+	--wwd-bar-other: #8c8f94;
 
 	color: var(--wwd-fg);
 	font-size: 15px;
@@ -29,6 +30,7 @@
 		--wwd-muted: #a7aaad;
 		--wwd-border: #3c434a;
 		--wwd-surface: #23282d;
+		--wwd-bar-other: #6c7076;
 	}
 }
 
@@ -312,6 +314,29 @@
 .wwd-bar:hover,
 .wwd-slice:hover {
 	filter: brightness(1.12);
+}
+
+/* A horizontal chart is as tall as it needs to be, so it must not be squashed
+   into the height meant for a cartesian one. */
+.wwd-chart--horizontal .wwd-svg {
+	max-height: none;
+}
+
+.wwd-bar--other {
+	fill: var(--wwd-bar-other);
+}
+
+.wwd-value {
+	fill: var(--wwd-fg);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	dominant-baseline: middle;
+}
+
+.wwd-chart__note {
+	margin: .4rem 0 0;
+	font-size: .84em;
+	color: var(--wwd-muted);
 }
 
 .wwd-legend {

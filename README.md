@@ -50,8 +50,10 @@ modello diretto: si sceglie nelle impostazioni, il resto del plugin è identico.
 - **Admin** — connessione a Wren AI, scelta delle tabelle condivise, contesto di business,
   deploy del modello semantico, log delle query, gestione dashboard e pannelli.
 - **Grafici senza dipendenze esterne**: nessuna CDN, nessun Vega runtime da 800 KB. Il plugin
-  interpreta il sottoinsieme di Vega-Lite che Wren AI produce (bar, grouped/stacked bar, line,
+  interpreta il sottoinsieme di Vega-Lite del modello (bar, grouped/stacked bar, line,
   multi-line, area, pie, KPI) e lo disegna in SVG inline (~20 KB di JS, dark mode inclusa).
+  Con molte categorie o nomi lunghi il grafico si gira di lato — etichette leggibili invece che
+  ruotate — e la coda lunga finisce in una sola barra, con la tabella che resta completa.
 
 ## Requisiti
 

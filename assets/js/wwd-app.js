@@ -122,7 +122,11 @@
 		var chart = null;
 
 		try {
-			chart = window.WWDChart.render( answer.chart, answer.columns, answer.rows, { height: options.height || 340 } );
+			chart = window.WWDChart.render( answer.chart, answer.columns, answer.rows, {
+				height: options.height || 340,
+				otherLabel: t( 'otherBar', 'Everything else' ),
+				otherNote: t( 'otherNote', 'The %d smallest are grouped together; the table lists them all.' )
+			} );
 		} catch ( e ) {
 			chart = null;
 		}

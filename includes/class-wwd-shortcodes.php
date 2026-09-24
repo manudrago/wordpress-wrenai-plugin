@@ -91,6 +91,9 @@ class WWD_Shortcodes {
 					'width'       => __( 'Width', 'wp-wren-dashboards' ),
 					'widthHalf'   => __( 'Half', 'wp-wren-dashboards' ),
 					'widthFull'   => __( 'Full', 'wp-wren-dashboards' ),
+					'otherBar'    => __( 'Everything else', 'wp-wren-dashboards' ),
+					/* translators: %d: how many categories were grouped into one bar. */
+					'otherNote'   => __( 'The %d smallest are grouped together; the table lists them all.', 'wp-wren-dashboards' ),
 					'widthThird'  => __( 'Third', 'wp-wren-dashboards' ),
 					'cancel'      => __( 'Cancel', 'wp-wren-dashboards' ),
 				),

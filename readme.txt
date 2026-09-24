@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.3.2
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,13 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.4.0 =
+* Charts with many categories, or long ones, are drawn horizontally: labels read normally
+  instead of being rotated and thinned until nobody can tell which bar is which. The long tail
+  is gathered into one row, with a note saying how many and pointing at the table.
+* Bar values are printed on the chart, so reading it does not require hovering.
+* Anything ordered by time is never reordered.
 
 = 1.3.2 =
 * A model whose context window cannot hold the schema plus the room reserved for an answer is
