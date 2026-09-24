@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,13 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.3.1 =
+* Survive a provider's JSON mode rejecting its own model's answer ("Failed to generate JSON"):
+  the answer inside the rejection is read when it is usable, and otherwise the question is
+  asked again without the JSON constraint and parsed leniently.
+* Reasoning models are usable: <think> narration is stripped before parsing, and the token
+  budget leaves room for it.
 
 = 1.3.0 =
 * Settings can ask the provider which models the key can actually use, and offer them as

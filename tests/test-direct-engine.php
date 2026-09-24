@@ -272,6 +272,112 @@ check( 'and is called at its own address', 'http://localhost:11434/v1/chat/compl
 check( 'with no Authorization header', ! isset( WWD_Test_HTTP::$last['headers']['Authorization'] ) );
 
 // ---------------------------------------------------------------------------
+// When the provider's JSON mode refuses the model's answer
+// ---------------------------------------------------------------------------
+
+WWD_Settings::update(
+	array(
+		'model_provider' => 'groq',
+		'model_api_key'  => 'test-key',
+		'model_base'     => '',
+		'model_name'     => 'some-reasoning-model',
+	)
+);
+
+$engine = new WWD_Engine_Direct();
+
+// Groq hands back what the model actually wrote. Usually it is fine.
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array(
+				'error' => array(
+					'message'           => 'Failed to generate JSON. Please adjust your prompt.',
+					'failed_generation' => '{"sql": "SELECT COUNT(*) AS posts FROM `wp_posts` LIMIT 100"}',
+				),
+			),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'quanti post?', array() );
+
+check( 'a rejected answer is read out of the rejection', ! is_wp_error( $result ) && false !== strpos( $result['sql'], 'SELECT COUNT(*)' ) );
+check( 'and costs no second call', 1 === count( WWD_Test_HTTP::$requests ) );
+
+// Reasoning models narrate first; the narration is not the answer.
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array(
+				'error' => array(
+					'message'           => 'Failed to generate JSON.',
+					'failed_generation' => "<think>The user wants a count. wp_posts has post_status.</think>\n{\"sql\": \"SELECT 1 LIMIT 1\"}",
+				),
+			),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'thinking out loud is stripped before reading', ! is_wp_error( $result ) && 'SELECT 1 LIMIT 1' === $result['sql'] );
+
+// Nothing usable in the rejection: ask again without the JSON straitjacket.
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array( 'error' => array( 'message' => 'Failed to generate JSON. Please adjust your prompt.' ) ),
+		),
+		array(
+			'response' => array(
+				'choices' => array( array( 'message' => array( 'content' => 'Sure: {"sql": "SELECT 2 LIMIT 1"}' ) ) ),
+			),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'an unusable rejection buys a second, plainer attempt', 2 === count( WWD_Test_HTTP::$requests ) );
+check( 'the retry drops the JSON mode that just failed', ! isset( WWD_Test_HTTP::$requests[1]['body']['response_format'] ) );
+check( 'and its answer is read leniently', ! is_wp_error( $result ) && 'SELECT 2 LIMIT 1' === $result['sql'] );
+
+// A 400 about something else is a real error, not a JSON tantrum.
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array( 'error' => array( 'message' => 'Invalid value for temperature' ) ),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'an unrelated 400 fails at once', is_wp_error( $result ) && 'wwd_model_http_error' === $result->get_error_code() );
+check( 'without a pointless second call', 1 === count( WWD_Test_HTTP::$requests ) );
+
+// Both attempts unreadable: give up, but say so plainly.
+WWD_Test_HTTP::queue(
+	array(
+		array( 'response' => array( 'choices' => array( array( 'message' => array( 'content' => 'no json here' ) ) ) ) ),
+		array( 'response' => array( 'choices' => array( array( 'message' => array( 'content' => 'still none' ) ) ) ) ),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'an unreadable answer is tried twice', 2 === count( WWD_Test_HTTP::$requests ) );
+check( 'then reported as a format failure', 'wwd_model_not_json' === error_code( $result ) );
+
+WWD_Test_HTTP::reset();
+WWD_Settings::update( array( 'model_name' => '' ) );
+
+// ---------------------------------------------------------------------------
 // Asking the provider what it has
 // ---------------------------------------------------------------------------
 

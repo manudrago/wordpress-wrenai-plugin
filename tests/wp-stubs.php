@@ -296,12 +296,67 @@ class WWD_Test_HTTP {
 	public static $raw = null;
 
 	/**
+	 * Every request of the current test, oldest first.
+	 *
+	 * @var array
+	 */
+	public static $requests = array();
+
+	/**
+	 * Scripted answers, consumed one per request: each entry is
+	 * array( 'status' => int, 'response' => array, 'raw' => string|null ).
+	 *
+	 * @var array
+	 */
+	public static $queue = array();
+
+	/**
+	 * Script the next answers.
+	 *
+	 * @param array $answers Partial answers, in order.
+	 * @return void
+	 */
+	public static function queue( array $answers ) {
+		self::reset();
+
+		foreach ( $answers as $answer ) {
+			self::$queue[] = array_merge(
+				array(
+					'status'   => 200,
+					'response' => array(),
+					'raw'      => null,
+				),
+				$answer
+			);
+		}
+	}
+
+	/**
+	 * The answer for this request.
+	 *
+	 * @return array
+	 */
+	public static function next() {
+		if ( ! empty( self::$queue ) ) {
+			return array_shift( self::$queue );
+		}
+
+		return array(
+			'status'   => self::$status,
+			'response' => self::$response,
+			'raw'      => self::$raw,
+		);
+	}
+
+	/**
 	 * Back to the defaults.
 	 *
 	 * @return void
 	 */
 	public static function reset() {
 		self::$last     = array();
+		self::$requests = array();
+		self::$queue    = array();
 		self::$response = array( 'query_id' => 'test-query' );
 		self::$status   = 200;
 		self::$raw      = null;
@@ -323,9 +378,13 @@ function wp_remote_request( $url, $args = array() ) {
 		'body'    => isset( $args['body'] ) ? json_decode( $args['body'], true ) : null,
 	);
 
+	WWD_Test_HTTP::$requests[] = WWD_Test_HTTP::$last;
+
+	$answer = WWD_Test_HTTP::next();
+
 	return array(
-		'response' => array( 'code' => WWD_Test_HTTP::$status ),
-		'body'     => null === WWD_Test_HTTP::$raw ? wp_json_encode( WWD_Test_HTTP::$response ) : WWD_Test_HTTP::$raw,
+		'response' => array( 'code' => $answer['status'] ),
+		'body'     => null === $answer['raw'] ? wp_json_encode( $answer['response'] ) : $answer['raw'],
 	);
 }
 

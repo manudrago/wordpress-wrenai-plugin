@@ -172,58 +172,127 @@ class WWD_Model_Client {
 		$shape = self::provider( $this->provider );
 		$shape = $shape['shape'];
 
-		$request = 'google' === $shape
-			? $this->google_request( $system, $user, $max_out )
-			: $this->openai_request( $system, $user, $max_out );
+		// Enforced JSON is the better first attempt: it is what keeps a chatty
+		// model from wrapping the answer in pleasantries. But a provider that
+		// validates the output rejects a model whose reasoning runs long or
+		// whose JSON is a little off, and the answer inside that rejection is
+		// usually perfectly usable - so the second attempt asks plainly and
+		// reads the result leniently.
+		foreach ( array( true, false ) as $strict ) {
+			$request = 'google' === $shape
+				? $this->google_request( $system, $user, $max_out, $strict )
+				: $this->openai_request( $system, $user, $max_out, $strict );
 
-		$response = wp_remote_post(
-			$request['url'],
-			array(
-				'timeout' => max( 10, $this->timeout ),
-				'headers' => $request['headers'],
-				'body'    => wp_json_encode( $request['body'] ),
-			)
+			$response = wp_remote_post(
+				$request['url'],
+				array(
+					'timeout' => max( 10, $this->timeout ),
+					'headers' => $request['headers'],
+					'body'    => wp_json_encode( $request['body'] ),
+				)
+			);
+
+			if ( is_wp_error( $response ) ) {
+				return new WP_Error(
+					'wwd_model_unreachable',
+					sprintf(
+						/* translators: %s: transport error message. */
+						__( 'Could not reach the model: %s', 'wp-wren-dashboards' ),
+						$response->get_error_message()
+					),
+					array( 'retry' => true )
+				);
+			}
+
+			$code = (int) wp_remote_retrieve_response_code( $response );
+			$body = (string) wp_remote_retrieve_body( $response );
+			$data = json_decode( $body, true );
+			$data = is_array( $data ) ? $data : array();
+
+			if ( $code >= 200 && $code < 300 ) {
+				$text    = 'google' === $shape ? $this->google_text( $data ) : $this->openai_text( $data );
+				$decoded = self::decode_json( $text );
+
+				if ( null !== $decoded ) {
+					return $decoded;
+				}
+
+				if ( ! $strict ) {
+					return new WP_Error(
+						'wwd_model_not_json',
+						'' === $text
+							? __( 'The model returned an empty answer. Try rephrasing the question, or pick another model.', 'wp-wren-dashboards' )
+							: __( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
+					);
+				}
+
+				// Strict mode produced something unreadable: ask again plainly.
+				continue;
+			}
+
+			if ( $strict && $this->rejected_json( $code, $data ) ) {
+				// Providers hand back what the model actually wrote, and it is
+				// often a good answer with a stray token around it.
+				$salvaged = self::decode_json( self::failed_generation( $data ) );
+
+				if ( null !== $salvaged ) {
+					return $salvaged;
+				}
+
+				continue;
+			}
+
+			return $this->http_error( $code, $data, $body );
+		}
+
+		return new WP_Error(
+			'wwd_model_not_json',
+			__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
 		);
+	}
 
-		if ( is_wp_error( $response ) ) {
-			return new WP_Error(
-				'wwd_model_unreachable',
-				sprintf(
-					/* translators: %s: transport error message. */
-					__( 'Could not reach the model: %s', 'wp-wren-dashboards' ),
-					$response->get_error_message()
-				),
-				array( 'retry' => true )
-			);
+	/**
+	 * Whether a rejection is the provider complaining about JSON rather than
+	 * about the request itself.
+	 *
+	 * @param int   $code HTTP status.
+	 * @param array $data Decoded body.
+	 * @return bool
+	 */
+	protected function rejected_json( $code, array $data ) {
+		if ( 400 !== $code ) {
+			return false;
 		}
 
-		$code = (int) wp_remote_retrieve_response_code( $response );
-		$body = (string) wp_remote_retrieve_body( $response );
-		$data = json_decode( $body, true );
-
-		if ( $code < 200 || $code >= 300 ) {
-			return $this->http_error( $code, is_array( $data ) ? $data : array(), $body );
+		if ( '' !== self::failed_generation( $data ) ) {
+			return true;
 		}
 
-		$text = 'google' === $shape ? $this->google_text( $data ) : $this->openai_text( $data );
+		$message = isset( $data['error']['message'] ) ? (string) $data['error']['message'] : '';
 
-		if ( '' === $text ) {
-			return new WP_Error(
-				'wwd_model_empty',
-				__( 'The model returned an empty answer. Try rephrasing the question.', 'wp-wren-dashboards' )
-			);
+		return false !== stripos( $message, 'json' );
+	}
+
+	/**
+	 * What the model wrote, as returned inside a JSON-mode rejection.
+	 *
+	 * @param array $data Decoded body.
+	 * @return string
+	 */
+	protected static function failed_generation( array $data ) {
+		foreach ( array( array( 'error', 'failed_generation' ), array( 'failed_generation' ) ) as $path ) {
+			$value = $data;
+
+			foreach ( $path as $key ) {
+				$value = is_array( $value ) && isset( $value[ $key ] ) ? $value[ $key ] : null;
+			}
+
+			if ( is_string( $value ) && '' !== $value ) {
+				return $value;
+			}
 		}
 
-		$decoded = self::decode_json( $text );
-
-		if ( null === $decoded ) {
-			return new WP_Error(
-				'wwd_model_not_json',
-				__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
-			);
-		}
-
-		return $decoded;
+		return '';
 	}
 
 	/**
@@ -397,7 +466,16 @@ class WWD_Model_Client {
 	 * @param int    $max_out Output tokens.
 	 * @return array
 	 */
-	protected function google_request( $system, $user, $max_out ) {
+	protected function google_request( $system, $user, $max_out, $strict = true ) {
+		$generation = array(
+			'temperature'     => 0,
+			'maxOutputTokens' => (int) $max_out,
+		);
+
+		if ( $strict ) {
+			$generation['responseMimeType'] = 'application/json';
+		}
+
 		return array(
 			// The key goes in a header, not the query string: URLs end up in
 			// logs and proxies, and this one would carry the secret.
@@ -416,11 +494,7 @@ class WWD_Model_Client {
 						'parts' => array( array( 'text' => $user ) ),
 					),
 				),
-				'generationConfig'   => array(
-					'temperature'      => 0,
-					'responseMimeType' => 'application/json',
-					'maxOutputTokens'  => (int) $max_out,
-				),
+				'generationConfig'   => $generation,
 			),
 		);
 	}
@@ -433,22 +507,28 @@ class WWD_Model_Client {
 	 * @param int    $max_out Output tokens.
 	 * @return array
 	 */
-	protected function openai_request( $system, $user, $max_out ) {
+	protected function openai_request( $system, $user, $max_out, $strict = true ) {
 		$headers = array( 'Content-Type' => 'application/json' );
 
 		if ( '' !== $this->api_key ) {
 			$headers['Authorization'] = 'Bearer ' . $this->api_key;
 		}
 
+		$body = array(
+			'model'       => $this->model,
+			'temperature' => 0,
+			'max_tokens'  => (int) $max_out,
+		);
+
+		if ( $strict ) {
+			$body['response_format'] = array( 'type' => 'json_object' );
+		}
+
 		return array(
 			'url'     => $this->base . '/chat/completions',
 			'headers' => $headers,
-			'body'    => array(
-				'model'           => $this->model,
-				'temperature'     => 0,
-				'max_tokens'      => (int) $max_out,
-				'response_format' => array( 'type' => 'json_object' ),
-				'messages'        => array(
+			'body'    => $body + array(
+				'messages' => array(
 					array(
 						'role'    => 'system',
 						'content' => $system,
@@ -461,6 +541,7 @@ class WWD_Model_Client {
 			),
 		);
 	}
+
 
 	/**
 	 * Text out of a Google response.
@@ -604,6 +685,17 @@ class WWD_Model_Client {
 	 * @return array|null
 	 */
 	public static function decode_json( $text ) {
+		$text = trim( (string) $text );
+
+		if ( '' === $text ) {
+			return null;
+		}
+
+		// Reasoning models narrate before answering, inside <think> tags that
+		// are not part of the answer. An unclosed one means the budget ran out
+		// mid-thought: there is nothing usable after it either way.
+		$text = preg_replace( '#<think>.*?</think>#is', '', $text );
+		$text = preg_replace( '#<think>.*$#is', '', $text );
 		$text = trim( (string) $text );
 
 		$decoded = json_decode( $text, true );
