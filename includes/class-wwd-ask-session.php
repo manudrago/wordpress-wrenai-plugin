@@ -23,6 +23,17 @@ class WWD_Ask_Session {
 	const MAX_STEPS        = 600;
 
 	/**
+	 * How many times a busy or unreachable provider is forgiven before the
+	 * question is given up on.
+	 */
+	const MAX_RETRIES = 8;
+
+	/**
+	 * Seconds to wait before each retry. The last one repeats.
+	 */
+	const BACKOFF = array( 2, 4, 8, 15, 30 );
+
+	/**
 	 * Session state.
 	 *
 	 * @var array
@@ -63,9 +74,14 @@ class WWD_Ask_Session {
 			return $ready;
 		}
 
-		$started = $engine->start_sql( $question, $keep_thread ? self::thread() : array() );
+		$thread  = $keep_thread ? self::thread() : array();
+		$started = $engine->start_sql( $question, $thread );
 
-		if ( is_wp_error( $started ) ) {
+		// A provider that is merely busy has not answered no: the question is
+		// kept and the next poll asks again.
+		$busy = is_wp_error( $started ) && WWD_Model_Client::is_retryable( $started );
+
+		if ( is_wp_error( $started ) && ! $busy ) {
 			return $started;
 		}
 
@@ -73,12 +89,15 @@ class WWD_Ask_Session {
 			'id'         => wp_generate_uuid4(),
 			'user_id'    => get_current_user_id(),
 			'question'   => $question,
-			'job'        => (string) $started['job'],
+			'thread'     => $thread,
+			'retries'    => 0,
+			'retry_at'   => 0,
+			'job'        => $busy ? '' : (string) $started['job'],
 			'chart_job'  => '',
 			'status'     => 'generating_sql',
-			'stage'      => '' !== $started['stage'] ? $started['stage'] : __( 'Understanding the question…', 'wp-wren-dashboards' ),
+			'stage'      => __( 'Understanding the question…', 'wp-wren-dashboards' ),
 			'sql'        => '',
-			'reasoning'  => (string) $started['reasoning'],
+			'reasoning'  => '',
 			'columns'    => array(),
 			'rows'       => array(),
 			'row_count'  => 0,
@@ -93,12 +112,24 @@ class WWD_Ask_Session {
 			'started'    => time(),
 		);
 
-		// An engine that answered outright leaves nothing to poll for: the
-		// next step is already running the statement.
-		if ( ! empty( $started['done'] ) ) {
-			$state['sql']    = (string) $started['sql'];
-			$state['status'] = 'running_query';
-			$state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+		if ( $busy ) {
+			$state['retries']  = 1;
+			$state['retry_at'] = time() + self::BACKOFF[0];
+			$state['stage']    = self::busy_stage();
+		} else {
+			if ( '' !== $started['stage'] ) {
+				$state['stage'] = $started['stage'];
+			}
+
+			$state['reasoning'] = (string) $started['reasoning'];
+
+			// An engine that answered outright leaves nothing to poll for: the
+			// next step is already running the statement.
+			if ( ! empty( $started['done'] ) ) {
+				$state['sql']    = (string) $started['sql'];
+				$state['status'] = 'running_query';
+				$state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+			}
 		}
 
 		$session = new self( $state );
@@ -125,6 +156,12 @@ class WWD_Ask_Session {
 		if ( ! is_array( $state ) ) {
 			return new WP_Error( 'wwd_session_expired', __( 'This question has expired. Please ask it again.', 'wp-wren-dashboards' ) );
 		}
+
+		$state += array(
+			'thread'   => array(),
+			'retries'  => 0,
+			'retry_at' => 0,
+		);
 
 		if ( (int) $state['user_id'] !== get_current_user_id() ) {
 			return new WP_Error( 'wwd_forbidden_session', __( 'This question belongs to somebody else.', 'wp-wren-dashboards' ) );
@@ -183,7 +220,14 @@ class WWD_Ask_Session {
 
 		switch ( $this->state['status'] ) {
 			case 'generating_sql':
-				$this->poll_sql();
+				// No job to poll means the engine answers in one go and the
+				// last attempt found the provider busy.
+				if ( '' === $this->state['job'] ) {
+					$this->retry_sql();
+				} else {
+					$this->poll_sql();
+				}
+
 				break;
 
 			case 'running_query':
@@ -191,13 +235,142 @@ class WWD_Ask_Session {
 				break;
 
 			case 'generating_chart':
-				$this->poll_chart();
+				if ( '' === $this->state['chart_job'] ) {
+					$this->retry_chart();
+				} else {
+					$this->poll_chart();
+				}
+
 				break;
 		}
 
 		$this->save();
 
 		return $this->to_array();
+	}
+
+	/**
+	 * What the card says while the provider catches its breath.
+	 *
+	 * @return string
+	 */
+	protected static function busy_stage() {
+		return __( 'The model is busy right now. Trying again in a moment…', 'wp-wren-dashboards' );
+	}
+
+	/**
+	 * Wait longer before the next attempt.
+	 *
+	 * @return void
+	 */
+	protected function back_off() {
+		$backoff = self::BACKOFF;
+		$index   = min( $this->state['retries'], count( $backoff ) - 1 );
+
+		$this->state['retries']++;
+		$this->state['retry_at'] = time() + $backoff[ $index ];
+		$this->state['stage']    = self::busy_stage();
+	}
+
+	/**
+	 * Whether another attempt is allowed, and due.
+	 *
+	 * @param WP_Error $error What the last attempt returned.
+	 * @return bool
+	 */
+	protected function may_retry( $error ) {
+		/**
+		 * Filters how many times a busy provider is forgiven within one
+		 * question.
+		 *
+		 * @param int $retries Attempts.
+		 */
+		$max = (int) apply_filters( 'wwd_max_provider_retries', self::MAX_RETRIES );
+
+		return WWD_Model_Client::is_retryable( $error ) && $this->state['retries'] < $max;
+	}
+
+	/**
+	 * Ask a synchronous engine for the statement again.
+	 *
+	 * @return void
+	 */
+	protected function retry_sql() {
+		if ( time() < (int) $this->state['retry_at'] ) {
+			return;
+		}
+
+		$result = WWD_Engine::make()->start_sql( $this->state['question'], (array) $this->state['thread'] );
+
+		if ( is_wp_error( $result ) ) {
+			if ( $this->may_retry( $result ) ) {
+				$this->back_off();
+
+				return;
+			}
+
+			$this->fail( $result->get_error_message() );
+
+			return;
+		}
+
+		$this->state['retries']  = 0;
+		$this->state['retry_at'] = 0;
+
+		if ( '' !== $result['reasoning'] ) {
+			$this->state['reasoning'] = $result['reasoning'];
+		}
+
+		if ( empty( $result['done'] ) ) {
+			$this->state['job']   = (string) $result['job'];
+			$this->state['stage'] = '' !== $result['stage'] ? $result['stage'] : __( 'Understanding the question…', 'wp-wren-dashboards' );
+
+			return;
+		}
+
+		$this->state['sql']    = $result['sql'];
+		$this->state['status'] = 'running_query';
+		$this->state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+	}
+
+	/**
+	 * Ask for the chart again. The data is already on screen's doorstep, so
+	 * running out of patience here means a table, not a failure.
+	 *
+	 * @return void
+	 */
+	protected function retry_chart() {
+		if ( time() < (int) $this->state['retry_at'] ) {
+			return;
+		}
+
+		$result = WWD_Engine::make()->start_chart(
+			$this->state['question'],
+			$this->state['sql'],
+			$this->state['columns'],
+			$this->state['rows']
+		);
+
+		if ( is_wp_error( $result ) ) {
+			if ( $this->may_retry( $result ) ) {
+				$this->back_off();
+
+				return;
+			}
+
+			$this->finish_chart( null, '', $result->get_error_message() );
+
+			return;
+		}
+
+		if ( ! empty( $result['done'] ) ) {
+			$this->finish_chart( $result['chart'], $result['chart_type'], $result['note'] );
+
+			return;
+		}
+
+		$this->state['chart_job'] = (string) $result['job'];
+		$this->state['stage']     = __( 'Designing the chart…', 'wp-wren-dashboards' );
 	}
 
 	/**
@@ -290,6 +463,16 @@ class WWD_Ask_Session {
 		);
 
 		if ( is_wp_error( $chart ) ) {
+			if ( $this->may_retry( $chart ) ) {
+				$this->state['retries']   = 0;
+				$this->state['chart_job'] = '';
+				$this->state['status']    = 'generating_chart';
+
+				$this->back_off();
+
+				return;
+			}
+
 			// The data is already there; a missing chart is not a failed answer.
 			$this->finish_chart( null, '', $chart->get_error_message() );
 

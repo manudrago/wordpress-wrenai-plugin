@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,12 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.2.2 =
+* A busy provider no longer costs the question: HTTP 503, 429, 5xx and transport failures are
+  waited out with a backoff (2s to 30s, about two and a half minutes in total) while the card
+  says the model is busy. A refused key, an unknown model or a malformed answer still fail
+  straight away, since waiting would not help.
 
 = 1.2.1 =
 * Google retired gemini-2.0-flash: the default is now gemini-3.6-flash. Any provider's model

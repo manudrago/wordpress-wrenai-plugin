@@ -59,6 +59,15 @@ class WP_Error {
 	}
 
 	/**
+	 * Error data.
+	 *
+	 * @return mixed
+	 */
+	public function get_error_data() {
+		return $this->data;
+	}
+
+	/**
 	 * Error message.
 	 *
 	 * @return string
@@ -97,7 +106,24 @@ function __( $text, $domain = '' ) { // phpcs:ignore
  * @return mixed
  */
 function apply_filters( $hook, $value ) {
-	return $value;
+	global $wwd_filters;
+
+	return isset( $wwd_filters[ $hook ] ) ? $wwd_filters[ $hook ] : $value;
+}
+
+$wwd_filters = array();
+
+/**
+ * Pin a filtered value for the rest of a test run.
+ *
+ * @param string $hook  Filter name.
+ * @param mixed  $value Value apply_filters() will return.
+ * @return void
+ */
+function add_test_filter( $hook, $value ) {
+	global $wwd_filters;
+
+	$wwd_filters[ $hook ] = $value;
 }
 
 /**
@@ -475,3 +501,86 @@ class WWD_Test_WPDB {
 }
 
 $GLOBALS['wpdb'] = new WWD_Test_WPDB();
+
+$wwd_transients = array();
+
+/**
+ * Transient reader.
+ *
+ * @param string $key Key.
+ * @return mixed
+ */
+function get_transient( $key ) {
+	global $wwd_transients;
+
+	return array_key_exists( $key, $wwd_transients ) ? $wwd_transients[ $key ] : false;
+}
+
+/**
+ * Transient writer.
+ *
+ * @param string $key     Key.
+ * @param mixed  $value   Value.
+ * @param int    $expires Ignored.
+ * @return bool
+ */
+function set_transient( $key, $value, $expires = 0 ) {
+	global $wwd_transients;
+
+	$wwd_transients[ $key ] = $value;
+
+	return true;
+}
+
+/**
+ * Transient remover.
+ *
+ * @param string $key Key.
+ * @return bool
+ */
+function delete_transient( $key ) {
+	global $wwd_transients;
+
+	unset( $wwd_transients[ $key ] );
+
+	return true;
+}
+
+/**
+ * Current user.
+ *
+ * @return int
+ */
+function get_current_user_id() {
+	return 1;
+}
+
+/**
+ * Capability check.
+ *
+ * @param string $capability Capability.
+ * @return bool
+ */
+function current_user_can( $capability ) {
+	return true;
+}
+
+/**
+ * Identifier.
+ *
+ * @return string
+ */
+function wp_generate_uuid4() {
+	return sprintf( '%04x%04x-%04x-%04x-%04x-%04x%04x%04x', ...array_map( static function () {
+		return wp_rand_int();
+	}, range( 1, 8 ) ) );
+}
+
+/**
+ * Small random integer for the stub uuid.
+ *
+ * @return int
+ */
+function wp_rand_int() {
+	return random_int( 0, 0xffff );
+}

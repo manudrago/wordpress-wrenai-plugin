@@ -12,4 +12,6 @@ php tests/test-pairing.php
 echo
 php tests/test-direct-engine.php
 echo
+php tests/test-retries.php
+echo
 node tests/test-chart-renderer.js

@@ -192,7 +192,8 @@ class WWD_Model_Client {
 					/* translators: %s: transport error message. */
 					__( 'Could not reach the model: %s', 'wp-wren-dashboards' ),
 					$response->get_error_message()
-				)
+				),
+				array( 'retry' => true )
 			);
 		}
 
@@ -402,7 +403,8 @@ class WWD_Model_Client {
 					/* translators: %s: provider message. */
 					__( 'The model provider is rate limiting this key: %s', 'wp-wren-dashboards' ),
 					$detail
-				)
+				),
+				array( 'retry' => true )
 			);
 		}
 
@@ -428,8 +430,27 @@ class WWD_Model_Client {
 				__( 'The model provider answered HTTP %1$d: %2$s', 'wp-wren-dashboards' ),
 				$code,
 				$detail
-			)
+			),
+			// A busy or broken provider (503 "high demand" on a free tier is
+			// the common one) is not a reason to throw the question away.
+			array( 'retry' => $code >= 500 )
 		);
+	}
+
+	/**
+	 * Whether an error is worth trying again in a moment.
+	 *
+	 * @param mixed $error Anything; only a WP_Error can be retryable.
+	 * @return bool
+	 */
+	public static function is_retryable( $error ) {
+		if ( ! is_wp_error( $error ) ) {
+			return false;
+		}
+
+		$data = $error->get_error_data();
+
+		return is_array( $data ) && ! empty( $data['retry'] );
 	}
 
 	/**
