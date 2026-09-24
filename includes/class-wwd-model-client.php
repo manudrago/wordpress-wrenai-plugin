@@ -227,6 +227,146 @@ class WWD_Model_Client {
 	}
 
 	/**
+	 * What this provider currently offers.
+	 *
+	 * Providers retire models on their own schedule, so any list written into
+	 * a release is wrong eventually - as both of this plugin's defaults were,
+	 * within a week of each other. Asking is the only thing that stays true.
+	 *
+	 * @return array|WP_Error Model ids, newest naming first as the provider
+	 *                        returns them.
+	 */
+	public function models() {
+		if ( '' === $this->base ) {
+			return new WP_Error(
+				'wwd_model_unconfigured',
+				__( 'Set an API base URL first.', 'wp-wren-dashboards' )
+			);
+		}
+
+		$shape   = self::provider( $this->provider );
+		$shape   = $shape['shape'];
+		$headers = array( 'Content-Type' => 'application/json' );
+
+		if ( 'google' === $shape ) {
+			$url                     = $this->base . '/models?pageSize=200';
+			$headers['x-goog-api-key'] = $this->api_key;
+		} else {
+			$url = $this->base . '/models';
+
+			if ( '' !== $this->api_key ) {
+				$headers['Authorization'] = 'Bearer ' . $this->api_key;
+			}
+		}
+
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout' => max( 10, min( 30, $this->timeout ) ),
+				'headers' => $headers,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return new WP_Error(
+				'wwd_model_unreachable',
+				sprintf(
+					/* translators: %s: transport error message. */
+					__( 'Could not reach the model: %s', 'wp-wren-dashboards' ),
+					$response->get_error_message()
+				),
+				array( 'retry' => true )
+			);
+		}
+
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$body = (string) wp_remote_retrieve_body( $response );
+		$data = json_decode( $body, true );
+
+		if ( $code < 200 || $code >= 300 ) {
+			return $this->http_error( $code, is_array( $data ) ? $data : array(), $body );
+		}
+
+		$models = 'google' === $shape ? self::google_models( $data ) : self::openai_models( $data );
+
+		if ( empty( $models ) ) {
+			return new WP_Error(
+				'wwd_model_list_empty',
+				__( 'The provider did not list any usable model for this key.', 'wp-wren-dashboards' )
+			);
+		}
+
+		return $models;
+	}
+
+	/**
+	 * Chat models out of a Google listing.
+	 *
+	 * @param mixed $data Decoded body.
+	 * @return array
+	 */
+	protected static function google_models( $data ) {
+		if ( ! is_array( $data ) || empty( $data['models'] ) ) {
+			return array();
+		}
+
+		$models = array();
+
+		foreach ( $data['models'] as $model ) {
+			if ( empty( $model['name'] ) ) {
+				continue;
+			}
+
+			// Embedding and image models live in the same list; only the ones
+			// that answer generateContent are any use here.
+			$methods = isset( $model['supportedGenerationMethods'] )
+				? (array) $model['supportedGenerationMethods']
+				: array();
+
+			if ( $methods && ! in_array( 'generateContent', $methods, true ) ) {
+				continue;
+			}
+
+			$models[] = preg_replace( '#^models/#', '', (string) $model['name'] );
+		}
+
+		return array_values( array_unique( $models ) );
+	}
+
+	/**
+	 * Chat models out of an OpenAI-compatible listing.
+	 *
+	 * @param mixed $data Decoded body.
+	 * @return array
+	 */
+	protected static function openai_models( $data ) {
+		if ( ! is_array( $data ) || empty( $data['data'] ) ) {
+			return array();
+		}
+
+		$models = array();
+
+		foreach ( $data['data'] as $model ) {
+			if ( empty( $model['id'] ) ) {
+				continue;
+			}
+
+			$id = (string) $model['id'];
+
+			// These listings mix in speech, embedding and moderation models,
+			// which cannot answer a question. Matching on the name is a
+			// heuristic, but the alternative is offering models that fail.
+			if ( preg_match( '/(whisper|tts|embed|moderation|guard|stable-diffusion|dall-e)/i', $id ) ) {
+				continue;
+			}
+
+			$models[] = $id;
+		}
+
+		return array_values( array_unique( $models ) );
+	}
+
+	/**
 	 * Cheap call that proves the key and model work.
 	 *
 	 * @return array|WP_Error
@@ -416,7 +556,7 @@ class WWD_Model_Client {
 				'wwd_model_unknown',
 				sprintf(
 					/* translators: 1: model name, 2: provider message. */
-					__( 'The provider does not know the model "%1$s": %2$s Put a current model name in the Model field under Wren AI → Settings.', 'wp-wren-dashboards' ),
+					__( 'The provider does not know the model "%1$s": %2$s Under Wren AI → Settings, press "List what this key can use" and pick one.', 'wp-wren-dashboards' ),
 					$this->model,
 					rtrim( $detail, '.' ) . '.'
 				)

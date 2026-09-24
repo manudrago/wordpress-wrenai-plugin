@@ -92,6 +92,9 @@ class WWD_Admin {
 					'paired'    => __( 'Server connected. Reloading…', 'wp-wren-dashboards' ),
 					'pairOff'   => __( 'Pairing closed.', 'wp-wren-dashboards' ),
 					'expired'   => __( 'The code expired before any server used it.', 'wp-wren-dashboards' ),
+					'asking'    => __( 'Asking the provider…', 'wp-wren-dashboards' ),
+					'models'    => __( 'models available — click one to use it, then save.', 'wp-wren-dashboards' ),
+					'picked'    => __( 'Picked. Save the settings to use it.', 'wp-wren-dashboards' ),
 				),
 			)
 		);

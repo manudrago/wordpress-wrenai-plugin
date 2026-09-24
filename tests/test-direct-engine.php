@@ -271,6 +271,68 @@ $engine->start_sql( 'x', array() );
 check( 'and is called at its own address', 'http://localhost:11434/v1/chat/completions' === WWD_Test_HTTP::$last['url'], WWD_Test_HTTP::$last['url'] );
 check( 'with no Authorization header', ! isset( WWD_Test_HTTP::$last['headers']['Authorization'] ) );
 
+// ---------------------------------------------------------------------------
+// Asking the provider what it has
+// ---------------------------------------------------------------------------
+
+WWD_Settings::update(
+	array(
+		'model_provider' => 'google',
+		'model_api_key'  => 'test-key',
+		'model_base'     => '',
+		'model_name'     => '',
+	)
+);
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$response = array(
+	'models' => array(
+		array( 'name' => 'models/gemini-3.6-flash', 'supportedGenerationMethods' => array( 'generateContent' ) ),
+		array( 'name' => 'models/gemini-3.6-pro', 'supportedGenerationMethods' => array( 'generateContent' ) ),
+		array( 'name' => 'models/text-embedding-004', 'supportedGenerationMethods' => array( 'embedContent' ) ),
+	),
+);
+
+$client = new WWD_Model_Client();
+$models = $client->models();
+
+check( 'Google is asked for its catalogue', false !== strpos( WWD_Test_HTTP::$last['url'], '/models' ), WWD_Test_HTTP::$last['url'] );
+check( 'with the key in a header', 'test-key' === WWD_Test_HTTP::$last['headers']['x-goog-api-key'] );
+check( 'the models/ prefix is stripped', array( 'gemini-3.6-flash', 'gemini-3.6-pro' ) === $models, wp_json_encode( $models ) );
+check( 'an embedding model is not offered as a brain', ! in_array( 'text-embedding-004', (array) $models, true ) );
+
+WWD_Settings::update( array( 'model_provider' => 'groq' ) );
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$response = array(
+	'data' => array(
+		array( 'id' => 'llama-4-scout-17b' ),
+		array( 'id' => 'whisper-large-v3' ),
+		array( 'id' => 'llama-guard-4-12b' ),
+		array( 'id' => 'qwen3-32b' ),
+	),
+);
+
+$client = new WWD_Model_Client();
+$models = $client->models();
+
+check( 'an OpenAI-compatible provider is asked the same way', 'https://api.groq.com/openai/v1/models' === WWD_Test_HTTP::$last['url'], WWD_Test_HTTP::$last['url'] );
+check( 'with a bearer token', 'Bearer test-key' === WWD_Test_HTTP::$last['headers']['Authorization'] );
+check( 'speech and moderation models are left out', array( 'llama-4-scout-17b', 'qwen3-32b' ) === $models, wp_json_encode( $models ) );
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$response = array( 'data' => array() );
+
+check( 'an empty catalogue is an error, not an empty picker', 'wwd_model_list_empty' === error_code( ( new WWD_Model_Client() )->models() ) );
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$status   = 401;
+WWD_Test_HTTP::$response = array( 'error' => array( 'message' => 'Invalid API Key' ) );
+
+check( 'a refused key is reported as such here too', 'wwd_model_unauthorised' === error_code( ( new WWD_Model_Client() )->models() ) );
+
+WWD_Test_HTTP::reset();
+
 echo "\n{$checks} checks, {$failures} failures\n";
 
 exit( $failures > 0 ? 1 : 0 );

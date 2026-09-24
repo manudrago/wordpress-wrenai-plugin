@@ -194,8 +194,13 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 					<td>
 						<input name="wwd[model_name]" id="wwd-model-name" type="text" class="regular-text code"
 							value="<?php echo esc_attr( $settings['model_name'] ); ?>"
-							placeholder="<?php echo esc_attr( $wwd_current['model'] ); ?>">
-						<p class="description"><?php esc_html_e( 'Empty uses the default for this provider. Providers retire models: if the connection test says the model is unknown, its message names the replacement — put that here.', 'wp-wren-dashboards' ); ?></p>
+							placeholder="<?php echo esc_attr( $wwd_current['model'] ); ?>"
+							list="wwd-model-list" autocomplete="off">
+						<datalist id="wwd-model-list"></datalist>
+						<button type="button" class="button" id="wwd-list-models"><?php esc_html_e( 'List what this key can use', 'wp-wren-dashboards' ); ?></button>
+						<p class="description"><?php esc_html_e( 'Empty uses the default for this provider. Providers retire models without warning, so if a model comes back as unknown, ask the provider what it has now and pick one.', 'wp-wren-dashboards' ); ?></p>
+						<p class="wwd-status" id="wwd-model-status"></p>
+						<div class="wwd-model-choices" id="wwd-model-choices" hidden></div>
 					</td>
 				</tr>
 				<tr>

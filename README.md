@@ -101,7 +101,7 @@ sito"** (è il default):
 |---|---|
 | Provider | Google AI Studio (gratuito), Groq (gratuito), OpenAI, o un endpoint OpenAI-compatibile |
 | API key | la chiave del provider — Google la regala su <https://aistudio.google.com/apikey> |
-| Modello | vuoto = il default del provider (`gemini-3.6-flash`) |
+| Modello | vuoto = il default del provider. I provider ritirano i modelli senza preavviso: il bottone **"List what this key can use"** chiede a loro cosa c'è ora e te li fa scegliere |
 | Lingua risposte | vuoto = lingua del sito |
 
 Premi **Test connessione**: deve diventare verde. Non c'è nient'altro da installare, da
@@ -255,7 +255,7 @@ stato finché il suo job non è pronto.
 | `DELETE` | `/wren-ai/v1/dashboards/{id}/panels/{panel}` | capability "salva" |
 | `GET` | `/wren-ai/v1/dashboards/{id}/panels/{panel}/data` | capability "chiedi" |
 | `POST` | `/wren-ai/v1/schema/sync` | `manage_options` |
-| `GET` | `/wren-ai/v1/schema/status`, `/health` | `manage_options` |
+| `GET` | `/wren-ai/v1/schema/status`, `/health`, `/models` | `manage_options` |
 | `POST` | `/wren-ai/v1/pair/open`, `/pair/close` | `manage_options` |
 | `GET` | `/wren-ai/v1/pair/status` | `manage_options` |
 | `POST` | `/wren-ai/v1/pair` | codice di pairing valido |

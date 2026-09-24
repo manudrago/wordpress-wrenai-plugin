@@ -190,3 +190,15 @@
 	display: block;
 	margin: .1rem 0 0 1.85rem;
 }
+
+.wwd-model-choices {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .3rem;
+	margin: .5rem 0 0;
+	max-width: 46em;
+}
+
+.wwd-model-choices .button {
+	font-family: Consolas, Monaco, monospace;
+}

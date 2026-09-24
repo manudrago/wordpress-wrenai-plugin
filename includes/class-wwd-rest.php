@@ -203,6 +203,16 @@ class WWD_REST {
 
 		register_rest_route(
 			self::NAMESPACE_V1,
+			'/models',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'models' ),
+				'permission_callback' => array( $this, 'can_manage' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
 			'/health',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -661,6 +671,27 @@ class WWD_REST {
 		set_transient( $key, $hits + 1, HOUR_IN_SECONDS );
 
 		return true;
+	}
+
+	/**
+	 * What the configured provider currently offers.
+	 *
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function models() {
+		$client = new WWD_Model_Client();
+		$models = $client->models();
+
+		if ( is_wp_error( $models ) ) {
+			return $this->error( $models );
+		}
+
+		return rest_ensure_response(
+			array(
+				'models'  => $models,
+				'current' => $client->model(),
+			)
+		);
 	}
 
 	/**

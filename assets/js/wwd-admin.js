@@ -317,6 +317,60 @@
 		} ).catch( function () {} );
 	}
 
+	// Nobody should have to guess a model id, and no list written into a
+	// release stays right: ask the provider what it has.
+	function bindModelList() {
+		var button = document.getElementById( 'wwd-list-models' );
+		var field = document.getElementById( 'wwd-model-name' );
+		var list = document.getElementById( 'wwd-model-list' );
+		var choices = document.getElementById( 'wwd-model-choices' );
+		var output = document.getElementById( 'wwd-model-status' );
+
+		if ( ! button || ! field ) {
+			return;
+		}
+
+		button.addEventListener( 'click', function () {
+			button.disabled = true;
+			choices.hidden = true;
+			choices.textContent = '';
+			status( output, t( 'asking' ) );
+
+			request( '/models' ).then( function ( data ) {
+				var models = data.models || [];
+
+				list.textContent = '';
+
+				models.forEach( function ( model ) {
+					var option = document.createElement( 'option' );
+
+					option.value = model;
+					list.appendChild( option );
+
+					var pick = document.createElement( 'button' );
+
+					pick.type = 'button';
+					pick.className = 'button button-small';
+					pick.textContent = model;
+
+					pick.addEventListener( 'click', function () {
+						field.value = model;
+						status( output, t( 'picked' ), 'ok' );
+					} );
+
+					choices.appendChild( pick );
+				} );
+
+				choices.hidden = ! models.length;
+				status( output, models.length + ' ' + t( 'models' ), 'ok' );
+			} ).catch( function ( error ) {
+				status( output, error.message, 'bad' );
+			} ).then( function () {
+				button.disabled = false;
+			} );
+		} );
+	}
+
 	// The settings form carries both engines; only the chosen one is shown.
 	function bindEngine() {
 		var radios = document.querySelectorAll( '[data-wwd-engine]' );
@@ -345,6 +399,7 @@
 		bindHealth();
 		bindSync();
 		bindEngine();
+		bindModelList();
 		bindPairing();
 		bindPreview();
 		bindBulkSelect();

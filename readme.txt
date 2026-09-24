@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.2
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,12 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.3.0 =
+* Settings can ask the provider which models the key can actually use, and offer them as
+  buttons to pick from. Providers retire models on their own schedule - both defaults shipped
+  in 1.2.0 went stale within a week - so asking beats any list written into a release.
+* An unknown-model error now points at that button.
 
 = 1.2.2 =
 * A busy provider no longer costs the question: HTTP 503, 429, 5xx and transport failures are
