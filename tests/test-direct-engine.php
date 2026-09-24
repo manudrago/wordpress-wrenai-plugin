@@ -378,6 +378,50 @@ WWD_Test_HTTP::reset();
 WWD_Settings::update( array( 'model_name' => '' ) );
 
 // ---------------------------------------------------------------------------
+// When the schema does not fit the model
+// ---------------------------------------------------------------------------
+
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array( 'error' => array( 'message' => 'Please reduce the length of the messages or completion.' ) ),
+		),
+		array(
+			'response' => array(
+				'choices' => array( array( 'message' => array( 'content' => '{"sql": "SELECT 3 LIMIT 1"}' ) ) ),
+			),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'a context that is too small buys a second, smaller ask', 2 === count( WWD_Test_HTTP::$requests ) );
+check(
+	'the second ask reserves less room for the answer',
+	WWD_Test_HTTP::$requests[1]['body']['max_tokens'] < WWD_Test_HTTP::$requests[0]['body']['max_tokens'],
+	wp_json_encode( array( WWD_Test_HTTP::$requests[0]['body']['max_tokens'], WWD_Test_HTTP::$requests[1]['body']['max_tokens'] ) )
+);
+check( 'and the answer comes through', ! is_wp_error( $result ) && 'SELECT 3 LIMIT 1' === $result['sql'] );
+
+// A model whose window cannot hold the schema at all.
+$squeezed = array(
+	'status'   => 400,
+	'response' => array( 'error' => array( 'code' => 'context_length_exceeded', 'message' => 'Request too large for model' ) ),
+);
+
+WWD_Test_HTTP::queue( array( $squeezed, $squeezed, $squeezed, $squeezed ) );
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'giving up is not immediate', count( WWD_Test_HTTP::$requests ) > 1 );
+check( 'the failure names the real problem', 'wwd_model_too_long' === error_code( $result ), error_code( $result ) );
+check( 'and what to do about it', false !== strpos( $result->get_error_message(), 'fewer tables' ) );
+
+WWD_Test_HTTP::reset();
+
+// ---------------------------------------------------------------------------
 // Asking the provider what it has
 // ---------------------------------------------------------------------------
 

@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,11 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.3.2 =
+* A model whose context window cannot hold the schema plus the room reserved for an answer is
+  asked again with less room reserved, and if it still does not fit the error says so: share
+  fewer tables, or pick a model with a larger window.
 
 = 1.3.1 =
 * Survive a provider's JSON mode rejecting its own model's answer ("Failed to generate JSON"):

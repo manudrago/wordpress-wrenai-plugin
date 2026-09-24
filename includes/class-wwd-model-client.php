@@ -54,6 +54,11 @@ class WWD_Model_Client {
 	protected $timeout;
 
 	/**
+	 * Smallest answer worth asking for when a model's context is tight.
+	 */
+	const MIN_BUDGET = 700;
+
+	/**
 	 * Providers offered in the settings screen.
 	 *
 	 * @return array
@@ -172,16 +177,26 @@ class WWD_Model_Client {
 		$shape = self::provider( $this->provider );
 		$shape = $shape['shape'];
 
-		// Enforced JSON is the better first attempt: it is what keeps a chatty
-		// model from wrapping the answer in pleasantries. But a provider that
-		// validates the output rejects a model whose reasoning runs long or
-		// whose JSON is a little off, and the answer inside that rejection is
-		// usually perfectly usable - so the second attempt asks plainly and
-		// reads the result leniently.
-		foreach ( array( true, false ) as $strict ) {
+		/*
+		 * Enforced JSON is the better first attempt: it is what keeps a chatty
+		 * model from wrapping the answer in pleasantries. But a provider that
+		 * validates the output rejects a model whose reasoning runs long or
+		 * whose JSON is a little off, and the answer inside that rejection is
+		 * usually perfectly usable - so a later attempt asks plainly and reads
+		 * the result leniently. A model whose context window cannot hold the
+		 * schema plus the room we reserved for an answer gets another go with
+		 * less room reserved.
+		 */
+		$strict  = true;
+		$budget  = (int) $max_out;
+		$attempt = 0;
+
+		while ( $attempt < 4 ) {
+			$attempt++;
+
 			$request = 'google' === $shape
-				? $this->google_request( $system, $user, $max_out, $strict )
-				: $this->openai_request( $system, $user, $max_out, $strict );
+				? $this->google_request( $system, $user, $budget, $strict )
+				: $this->openai_request( $system, $user, $budget, $strict );
 
 			$response = wp_remote_post(
 				$request['url'],
@@ -227,6 +242,8 @@ class WWD_Model_Client {
 				}
 
 				// Strict mode produced something unreadable: ask again plainly.
+				$strict = false;
+
 				continue;
 			}
 
@@ -239,7 +256,30 @@ class WWD_Model_Client {
 					return $salvaged;
 				}
 
+				$strict = false;
+
 				continue;
+			}
+
+			if ( $this->too_long( $code, $data ) ) {
+				// The schema plus the room reserved for an answer does not fit
+				// this model. Reserve less and try once more; if even a short
+				// answer does not fit, the schema itself is too big for it.
+				if ( $budget > self::MIN_BUDGET ) {
+					$budget = max( self::MIN_BUDGET, (int) floor( $budget / 3 ) );
+
+					continue;
+				}
+
+				return new WP_Error(
+					'wwd_model_too_long',
+					sprintf(
+						/* translators: 1: model name, 2: provider message. */
+						__( 'The schema of this site does not fit in the context window of "%1$s" (%2$s). Share fewer tables under Wren AI → Data & schema, or pick a model with a larger context window.', 'wp-wren-dashboards' ),
+						$this->model,
+						rtrim( self::message( $data ), '.' )
+					)
+				);
 			}
 
 			return $this->http_error( $code, $data, $body );
@@ -249,6 +289,53 @@ class WWD_Model_Client {
 			'wwd_model_not_json',
 			__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
 		);
+	}
+
+	/**
+	 * Whether a rejection means the request did not fit the model.
+	 *
+	 * @param int   $code HTTP status.
+	 * @param array $data Decoded body.
+	 * @return bool
+	 */
+	protected function too_long( $code, array $data ) {
+		if ( 400 !== $code && 413 !== $code ) {
+			return false;
+		}
+
+		$message = self::message( $data );
+		$code_id = isset( $data['error']['code'] ) ? (string) $data['error']['code'] : '';
+
+		if ( 'context_length_exceeded' === $code_id ) {
+			return true;
+		}
+
+		return (bool) preg_match(
+			'/(reduce the length|context length|context window|too many tokens|maximum.{0,20}tokens|token limit)/i',
+			$message
+		);
+	}
+
+	/**
+	 * The provider's own wording of what went wrong.
+	 *
+	 * @param array $data Decoded body.
+	 * @return string
+	 */
+	protected static function message( array $data ) {
+		foreach ( array( array( 'error', 'message' ), array( 'message' ), array( 'error' ) ) as $path ) {
+			$value = $data;
+
+			foreach ( $path as $key ) {
+				$value = is_array( $value ) && isset( $value[ $key ] ) ? $value[ $key ] : null;
+			}
+
+			if ( is_string( $value ) && '' !== $value ) {
+				return $value;
+			}
+		}
+
+		return '';
 	}
 
 	/**
@@ -586,21 +673,7 @@ class WWD_Model_Client {
 	 * @return WP_Error
 	 */
 	protected function http_error( $code, array $data, $body ) {
-		$detail = '';
-
-		foreach ( array( array( 'error', 'message' ), array( 'message' ), array( 'error' ) ) as $path ) {
-			$value = $data;
-
-			foreach ( $path as $key ) {
-				$value = is_array( $value ) && isset( $value[ $key ] ) ? $value[ $key ] : null;
-			}
-
-			if ( is_string( $value ) && '' !== $value ) {
-				$detail = $value;
-
-				break;
-			}
-		}
+		$detail = self::message( $data );
 
 		if ( '' === $detail ) {
 			$detail = trim( wp_strip_all_tags( substr( $body, 0, 200 ) ) );

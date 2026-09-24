@@ -89,7 +89,7 @@ class WWD_Engine_Direct extends WWD_Engine {
 	 */
 	public function start_sql( $question, array $thread ) {
 		$client = new WWD_Model_Client();
-		$answer = $client->complete( $this->sql_instructions(), $this->sql_request( $question, $thread ), 3000 );
+		$answer = $client->complete( $this->sql_instructions(), $this->sql_request( $question, $thread ), 2000 );
 
 		if ( is_wp_error( $answer ) ) {
 			return $answer;
