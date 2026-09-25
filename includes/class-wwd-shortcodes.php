@@ -91,6 +91,11 @@ class WWD_Shortcodes {
 					'width'       => __( 'Width', 'wp-wren-dashboards' ),
 					'widthHalf'   => __( 'Half', 'wp-wren-dashboards' ),
 					'widthFull'   => __( 'Full', 'wp-wren-dashboards' ),
+					'view_column' => __( 'Columns', 'wp-wren-dashboards' ),
+					'view_bar'    => __( 'Bars', 'wp-wren-dashboards' ),
+					'view_line'   => __( 'Line', 'wp-wren-dashboards' ),
+					'view_area'   => __( 'Area', 'wp-wren-dashboards' ),
+					'view_pie'    => __( 'Pie', 'wp-wren-dashboards' ),
 					'otherBar'    => __( 'Everything else', 'wp-wren-dashboards' ),
 					/* translators: %d: how many categories were grouped into one bar. */
 					'otherNote'   => __( 'The %d smallest are grouped together; the table lists them all.', 'wp-wren-dashboards' ),

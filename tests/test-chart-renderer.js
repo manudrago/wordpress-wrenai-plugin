@@ -388,6 +388,57 @@ check(
 	namedKpi ? findByClass( namedKpi, 'wwd-kpi__label' )[ 0 ].textContent : ''
 );
 
+// 8d. The reader picks the shape.
+var cityRows = [
+	[ 'Dubai', 26 ], [ 'Abu Dhabi', 16 ], [ 'Sharjah', 4 ], [ 'Ajman', 2 ]
+];
+
+var citySpec = { mark: 'bar', encoding: { x: { field: 'city', type: 'nominal' }, y: { field: 'customers', type: 'quantitative' } } };
+
+check( 'offers the shapes this data can honestly take', JSON.stringify( chart.views( citySpec, [ 'city', 'customers' ], cityRows ) ) === '["column","bar","pie"]',
+	JSON.stringify( chart.views( citySpec, [ 'city', 'customers' ], cityRows ) ) );
+
+check( 'never offers a line over unordered categories', chart.views( citySpec, [ 'city', 'customers' ], cityRows ).indexOf( 'line' ) === -1 );
+
+check( 'never offers a pie of negative numbers', chart.views(
+	citySpec,
+	[ 'city', 'customers' ],
+	[ [ 'Dubai', 5 ], [ 'Ajman', -2 ] ]
+).indexOf( 'pie' ) === -1 );
+
+var timeShapes = chart.views(
+	{ mark: 'line', encoding: { x: { field: 'month', type: 'temporal' }, y: { field: 'sales', type: 'quantitative' } } },
+	[ 'month', 'sales' ],
+	[ [ '2025-10', 900 ], [ '2025-11', 300 ], [ '2025-12', 1500 ] ]
+);
+
+check( 'puts the model\'s own choice first', timeShapes[ 0 ] === 'line', JSON.stringify( timeShapes ) );
+check( 'and offers the rest for a time series', timeShapes.indexOf( 'area' ) !== -1 && timeShapes.indexOf( 'column' ) !== -1 );
+
+var asPie = chart.render( citySpec, [ 'city', 'customers' ], cityRows, { view: 'pie' } );
+
+check( 'draws a pie when the reader asks for one', asPie && findAll( asPie, 'path' ).length === 4, asPie ? findAll( asPie, 'path' ).length : 'null' );
+
+var asBars = chart.render( citySpec, [ 'city', 'customers' ], cityRows, { view: 'bar' } );
+
+check( 'draws sideways bars on request, even with few categories', asBars && asBars.className.indexOf( 'wwd-chart--horizontal' ) !== -1 );
+
+var asColumns = chart.render(
+	{ mark: 'bar', encoding: { x: { field: 'city' }, y: { field: 'n' } } },
+	[ 'city', 'n' ],
+	Array.from( { length: 12 }, function ( _, i ) { return [ 'a city named ' + i, 12 - i ]; } ),
+	{ view: 'column' }
+);
+
+check( 'and upright ones on request, even with many', asColumns && asColumns.className.indexOf( 'wwd-chart--horizontal' ) === -1 );
+
+check( 'ignores a shape the data cannot take', ( function () {
+	var forced = chart.render( citySpec, [ 'city', 'customers' ], cityRows, { view: 'line' } );
+
+	// Falls back to the model's own shape rather than drawing a lie.
+	return forced && findAll( forced, 'rect' ).length === 4;
+}() ) );
+
 // 9. The table view.
 var table = chart.table( [ 'a', 'b' ], [ [ 1, 'x' ], [ 2, 'y' ] ] );
 

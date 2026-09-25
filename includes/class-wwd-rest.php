@@ -93,6 +93,7 @@ class WWD_REST {
 					),
 					'title'      => array( 'type' => 'string' ),
 					'width'      => array( 'type' => 'string' ),
+					'view'       => array( 'type' => 'string' ),
 				),
 			)
 		);
@@ -403,6 +404,7 @@ class WWD_REST {
 				'sql'        => $answer['sql'],
 				'chart'      => $answer['chart'],
 				'chart_type' => $answer['chart_type'],
+				'chart_view' => (string) $request->get_param( 'view' ),
 				'width'      => $width,
 			)
 		);

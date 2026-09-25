@@ -115,6 +115,8 @@ class WWD_Dashboards {
 			'sql'        => $prepared['sql'],
 			'chart'      => isset( $panel['chart'] ) && is_array( $panel['chart'] ) ? self::sanitize_chart( $panel['chart'] ) : null,
 			'chart_type' => sanitize_text_field( isset( $panel['chart_type'] ) ? $panel['chart_type'] : '' ),
+			// The shape the reader chose, which outlives the model's guess.
+			'chart_view' => self::sanitize_view( isset( $panel['chart_view'] ) ? $panel['chart_view'] : '' ),
 			'width'      => in_array( isset( $panel['width'] ) ? $panel['width'] : '', array( 'full', 'half', 'third' ), true ) ? $panel['width'] : 'half',
 			'created_at' => current_time( 'mysql' ),
 			'created_by' => get_current_user_id(),
@@ -244,6 +246,7 @@ class WWD_Dashboards {
 			'sql'        => WWD_Settings::get( 'show_sql', 1 ) ? $panel['sql'] : '',
 			'chart'      => $panel['chart'],
 			'chart_type' => $panel['chart_type'],
+			'chart_view' => isset( $panel['chart_view'] ) ? $panel['chart_view'] : '',
 			'width'      => $panel['width'],
 			'columns'    => $result['columns'],
 			'rows'       => $result['rows'],
@@ -251,6 +254,18 @@ class WWD_Dashboards {
 			'cached'     => $result['cached'],
 			'duration'   => $result['duration'],
 		);
+	}
+
+	/**
+	 * One of the shapes the renderer can draw, or nothing.
+	 *
+	 * @param string $view Requested view.
+	 * @return string
+	 */
+	public static function sanitize_view( $view ) {
+		$view = sanitize_key( $view );
+
+		return in_array( $view, array( 'column', 'bar', 'line', 'area', 'pie' ), true ) ? $view : '';
 	}
 
 	/**

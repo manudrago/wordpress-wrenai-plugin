@@ -44,7 +44,9 @@ modello diretto: si sceglie nelle impostazioni, il resto del plugin è identico.
 
 - **`[wren_ai_dashboard]`** — il form "chiedi qualsiasi cosa". Domanda → SQL → dati → grafico.
   Include domande di esempio cliccabili, follow-up conversazionali ("e per l'anno scorso?"),
-  export CSV, SQL a vista (disattivabile) e pulsante *Salva nella dashboard*.
+  export CSV, SQL a vista (disattivabile) e pulsante *Salva nella dashboard*. Il tipo di
+  grafico proposto dal modello è solo il default: chi legge sceglie tra colonne, barre, linea,
+  area e torta — e la scelta viene salvata insieme al pannello.
 - **`[wren_dashboard id="12"]`** — una dashboard salvata: griglia di pannelli, ognuno
   ri-eseguito dal vivo a ogni caricamento (con cache), con refresh automatico opzionale.
 - **Admin** — connessione a Wren AI, scelta delle tabelle condivise, contesto di business,

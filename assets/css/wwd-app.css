@@ -245,6 +245,7 @@
 
 .wwd-tabs {
 	display: inline-flex;
+	flex-wrap: wrap;
 	gap: .25rem;
 	background: var(--wwd-surface);
 	border-radius: 999px;

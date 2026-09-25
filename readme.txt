@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,13 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.6.0 =
+* The reader picks the chart. The model's choice is still the default, but every answer now
+  offers the shapes its data can honestly take - columns, bars, line, area, pie - and switching
+  is one click. Shapes that would mislead are not offered: no line over categories with no
+  order, no pie of negative numbers or of more than ten slices.
+* Saving a panel saves the shape you are looking at, and the dashboard opens it that way.
 
 = 1.5.0 =
 * A time axis now runs forwards whatever order the query returned, so "ORDER BY month DESC"

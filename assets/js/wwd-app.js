@@ -119,49 +119,116 @@
 			return;
 		}
 
-		var chart = null;
+		var shapes = [];
 
 		try {
-			chart = window.WWDChart.render( answer.chart, answer.columns, answer.rows, {
-				height: options.height || 340,
-				otherLabel: t( 'otherBar', 'Everything else' ),
-				otherNote: t( 'otherNote', 'The %d smallest are grouped together; the table lists them all.' )
-			} );
+			shapes = window.WWDChart.views( answer.chart, answer.columns, answer.rows ) || [];
 		} catch ( e ) {
-			chart = null;
+			shapes = [];
 		}
 
+		// The model's choice is first; the reader may prefer another, and that
+		// preference is what gets saved with the panel.
+		var chosen = options.view && shapes.indexOf( options.view ) !== -1 ? options.view : shapes[ 0 ];
+
+		function draw() {
+			try {
+				return window.WWDChart.render( answer.chart, answer.columns, answer.rows, {
+					height: options.height || 340,
+					view: chosen,
+					otherLabel: t( 'otherBar', 'Everything else' ),
+					otherNote: t( 'otherNote', 'The %d smallest are grouped together; the table lists them all.' )
+				} );
+			} catch ( e ) {
+				return null;
+			}
+		}
+
+		var chart = draw();
 		var table = window.WWDChart.table( answer.columns, answer.rows, 200 );
 		var views = element( 'div', 'wwd-views' );
 
 		if ( chart ) {
 			var tabs = element( 'div', 'wwd-tabs' );
-			var chartTab = element( 'button', 'wwd-tab is-active', t( 'showChart' ) );
-			var tableTab = element( 'button', 'wwd-tab', t( 'showTable' ) );
+			var holder = element( 'div', 'wwd-views__chart' );
+			var buttons = [];
 
-			chartTab.type = 'button';
-			tableTab.type = 'button';
-
+			holder.appendChild( chart );
 			table.hidden = true;
 
-			chartTab.addEventListener( 'click', function () {
-				chartTab.classList.add( 'is-active' );
-				tableTab.classList.remove( 'is-active' );
-				chart.hidden = false;
-				table.hidden = true;
+			function activate( button ) {
+				buttons.forEach( function ( other ) {
+					other.classList.remove( 'is-active' );
+				} );
+
+				button.classList.add( 'is-active' );
+			}
+
+			shapes.forEach( function ( shape ) {
+				var button = element( 'button', 'wwd-tab', t( 'view_' + shape, shape ) );
+
+				button.type = 'button';
+				button.setAttribute( 'data-wwd-view', shape );
+
+				if ( shape === chosen ) {
+					button.classList.add( 'is-active' );
+				}
+
+				button.addEventListener( 'click', function () {
+					chosen = shape;
+					holder.innerHTML = '';
+
+					var redrawn = draw();
+
+					if ( redrawn ) {
+						holder.appendChild( redrawn );
+					}
+
+					holder.hidden = false;
+					table.hidden = true;
+					activate( button );
+
+					if ( options.onView ) {
+						options.onView( shape );
+					}
+				} );
+
+				buttons.push( button );
+				tabs.appendChild( button );
 			} );
+
+			// A KPI has no shapes to choose between, but still needs a way back
+			// to the numbers behind it.
+			if ( ! shapes.length ) {
+				var chartTab = element( 'button', 'wwd-tab is-active', t( 'showChart' ) );
+
+				chartTab.type = 'button';
+
+				chartTab.addEventListener( 'click', function () {
+					holder.hidden = false;
+					table.hidden = true;
+					activate( chartTab );
+				} );
+
+				buttons.push( chartTab );
+				tabs.appendChild( chartTab );
+			}
+
+			var tableTab = element( 'button', 'wwd-tab', t( 'showTable' ) );
+
+			tableTab.type = 'button';
 
 			tableTab.addEventListener( 'click', function () {
-				tableTab.classList.add( 'is-active' );
-				chartTab.classList.remove( 'is-active' );
-				chart.hidden = true;
+				holder.hidden = true;
 				table.hidden = false;
+				activate( tableTab );
 			} );
 
-			tabs.appendChild( chartTab );
+			buttons.push( tableTab );
 			tabs.appendChild( tableTab );
+
 			views.appendChild( tabs );
-			views.appendChild( chart );
+			views.appendChild( holder );
 		}
 
 		views.appendChild( table );
@@ -283,7 +350,8 @@
 						body: {
 							session_id: answer.id,
 							title: title.value,
-							width: width.value
+							width: width.value,
+							view: answer.chart_view || ''
 						}
 					} ).then( function ( saved ) {
 						form.remove();
@@ -467,7 +535,14 @@
 	AskApp.prototype.finish = function ( view, answer ) {
 		view.stage.remove();
 
-		renderResult( view.body, answer, { height: this.height } );
+		renderResult( view.body, answer, {
+			height: this.height,
+			onView: function ( shape ) {
+				// Saving the panel should save what the reader is looking at,
+				// not what the model first proposed.
+				answer.chart_view = shape;
+			}
+		} );
 
 		if ( answer.chart_note ) {
 			view.card.appendChild( element( 'p', 'wwd-note', answer.chart_note ) );
@@ -525,7 +600,7 @@
 
 		request( '/dashboards/' + encodeURIComponent( this.id ) + '/panels/' + encodeURIComponent( id ) + '/data' )
 			.then( function ( data ) {
-				renderResult( body, data, { height: 300 } );
+				renderResult( body, data, { height: 300, view: data.chart_view || '' } );
 			} )
 			.catch( function ( error ) {
 				body.innerHTML = '';
