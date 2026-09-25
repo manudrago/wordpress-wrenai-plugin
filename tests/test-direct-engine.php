@@ -126,6 +126,8 @@ $rules = $sent['body']['system_instruction']['parts'][0]['text'];
 check( 'the rules demand a single read-only statement', false !== strpos( $rules, 'start with SELECT or WITH' ) );
 check( 'the rules demand a LIMIT', false !== strpos( $rules, 'LIMIT' ) );
 check( 'the rules name the dialect', false !== strpos( $rules, 'DATE_FORMAT' ) );
+check( 'the rules keep a period in one column', false !== strpos( $rules, 'One period, one column' ) );
+check( 'and ask for time in reading order', false !== strpos( $rules, 'time ascending, oldest first' ) );
 
 // Follow-up questions carry the thread.
 answer_with( 'google', '{"sql":"SELECT 2 LIMIT 1"}' );

@@ -174,7 +174,9 @@ class WWD_Engine_Direct extends WWD_Engine {
 			"- Always end with a LIMIT.\n" .
 			"- Quote identifiers with backticks. Give every computed column a readable alias, because those aliases become the chart labels and the CSV header.\n" .
 			"- MySQL dialect: DATE_FORMAT() not DATE_TRUNC(), CAST(x AS SIGNED) not BIGINT, CONCAT() not ||, no FILTER clause, no window function unless the question truly needs one.\n" .
-			"- Aggregate rather than dump rows: a question about data wants counts, sums and averages grouped by something, ordered so the interesting rows come first.\n\n" .
+			"- Aggregate rather than dump rows: a question about data wants counts, sums and averages grouped by something.\n" .
+			"- One period, one column. For anything over time, group by a single sortable period - DATE_FORMAT(d, '%Y-%m') for months, '%Y-%m-%d' for days, '%Y' for years - and never split the year into one column and the month into another. Two columns cannot say that October 2025 comes before January 2026, so a chart built on them puts the months in the wrong order.\n" .
+			"- Order the rows the way they should be read: time ascending, oldest first; rankings by the measure, largest first.\n\n" .
 			"Answer with JSON only: {\"sql\": \"…\", \"explanation\": \"one sentence, in the language of the question\", \"error\": \"\"}.\n" .
 			"If the question cannot be answered from this schema, or is not about the data at all, leave sql empty and put a short, friendly reason in error.";
 
