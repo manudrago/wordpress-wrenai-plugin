@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,10 @@ SVG — no external chart library, no CDN.
 Nothing to install anywhere: an API key is the whole setup, and Google AI Studio and Groq give
 one away. A Wren AI service can be used instead of the model, for sites that already run one.
 
-**Shortcodes**
+Everything happens in wp-admin under **Wren AI**: Ask, Dashboards, Data & schema, Settings,
+Query log. No page to create, no shortcode to paste, and the WordPress login is the only door.
+
+**Shortcodes** (optional, for showing a dashboard to people without wp-admin access)
 
 * `[wren_ai_dashboard]` — the ask form.
 * `[wren_dashboard id="12"]` — a saved dashboard.
@@ -47,7 +50,8 @@ and statement is logged.
    press "Test connection".
 3. Wren AI → Data & schema: pick the tables to share and add business context. Nothing to
    deploy — the schema travels with every question.
-4. Put `[wren_ai_dashboard]` on a page.
+4. Wren AI → Ask, and ask something. Optionally put `[wren_ai_dashboard]` on a page to reach
+   people who do not have wp-admin access.
 
 Prefer to run Wren AI? Pick that engine in Settings; deploy/README.md installs one on any
 Ubuntu/Debian machine with a single command.
@@ -78,6 +82,14 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.8.0 =
+* The plugin lives in wp-admin now: "Wren AI" opens the ask form, and a Dashboards screen shows
+  the saved panels. Nothing has to be published to a page to use it, and the WordPress login is
+  the only way in. The shortcodes stay, for showing a dashboard to people without wp-admin
+  access.
+* Settings moved to its own submenu, since it is visited twice: at the start, and when
+  something breaks.
 
 = 1.7.0 =
 * A site without a licence keeps two saved panels. Panels saved before the limit existed are

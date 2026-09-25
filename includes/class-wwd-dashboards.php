@@ -79,6 +79,7 @@ class WWD_Dashboards {
 			array(
 				'labels'       => array(
 					'name'          => __( 'Wren Dashboards', 'wp-wren-dashboards' ),
+					'all_items'     => __( 'Manage dashboards', 'wp-wren-dashboards' ),
 					'singular_name' => __( 'Dashboard', 'wp-wren-dashboards' ),
 					'add_new_item'  => __( 'Add dashboard', 'wp-wren-dashboards' ),
 					'edit_item'     => __( 'Edit dashboard', 'wp-wren-dashboards' ),

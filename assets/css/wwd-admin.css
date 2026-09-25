@@ -202,3 +202,25 @@
 .wwd-model-choices .button {
 	font-family: Consolas, Monaco, monospace;
 }
+
+/* The ask form and the dashboards run inside wp-admin, where the page already
+   has its own padding and a white background behind everything. */
+.wwd-screen .wwd-app,
+.wwd-screen .wwd-board {
+	max-width: 1100px;
+	margin-top: 1rem;
+}
+
+.wwd-screen .wwd-app__title,
+.wwd-screen .wwd-board__title {
+	display: none;
+}
+
+.wwd-board-switch {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .4rem;
+	margin: 1rem 0 0;
+	padding: 0;
+	list-style: none;
+}

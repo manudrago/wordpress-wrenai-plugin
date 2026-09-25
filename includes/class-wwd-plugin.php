@@ -13,6 +13,27 @@ defined( 'ABSPATH' ) || exit;
 class WWD_Plugin {
 
 	/**
+	 * The ask form and dashboard renderers, shared by the shortcodes and the
+	 * admin screens that are the main way to reach them.
+	 *
+	 * @var WWD_Shortcodes|null
+	 */
+	protected $shortcodes = null;
+
+	/**
+	 * Those renderers.
+	 *
+	 * @return WWD_Shortcodes
+	 */
+	public function shortcodes() {
+		if ( null === $this->shortcodes ) {
+			$this->shortcodes = new WWD_Shortcodes();
+		}
+
+		return $this->shortcodes;
+	}
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -24,8 +45,8 @@ class WWD_Plugin {
 		$rest = new WWD_REST();
 		$rest->init();
 
-		$shortcodes = new WWD_Shortcodes();
-		$shortcodes->init();
+		$this->shortcodes = new WWD_Shortcodes();
+		$this->shortcodes->init();
 
 		if ( is_admin() ) {
 			$admin = new WWD_Admin();
@@ -53,7 +74,7 @@ class WWD_Plugin {
 			return;
 		}
 
-		$url = admin_url( 'admin.php?page=wwd' );
+		$url = admin_url( 'admin.php?page=wwd-settings' );
 
 		$message = 'wren' === WWD_Settings::get( 'engine', 'direct' )
 			/* translators: %s: settings URL. */

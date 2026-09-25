@@ -39,19 +39,96 @@ class WWD_Admin {
 	 * @return void
 	 */
 	public function menu() {
+		// Asking is what the plugin is for, so it is what opens when someone
+		// clicks the menu. Settings are visited twice: once at the start, once
+		// when something breaks.
+		$ask = (string) WWD_Settings::get( 'ask_capability', 'edit_posts' );
+
 		add_menu_page(
-			__( 'Wren AI Dashboards', 'wp-wren-dashboards' ),
 			__( 'Wren AI', 'wp-wren-dashboards' ),
-			'manage_options',
+			__( 'Wren AI', 'wp-wren-dashboards' ),
+			$ask,
 			'wwd',
-			array( $this, 'render_settings' ),
+			array( $this, 'render_ask' ),
 			'dashicons-chart-area',
 			58
 		);
 
-		add_submenu_page( 'wwd', __( 'Settings', 'wp-wren-dashboards' ), __( 'Settings', 'wp-wren-dashboards' ), 'manage_options', 'wwd', array( $this, 'render_settings' ) );
+		add_submenu_page( 'wwd', __( 'Ask', 'wp-wren-dashboards' ), __( 'Ask', 'wp-wren-dashboards' ), $ask, 'wwd', array( $this, 'render_ask' ) );
+		add_submenu_page( 'wwd', __( 'Dashboards', 'wp-wren-dashboards' ), __( 'Dashboards', 'wp-wren-dashboards' ), $ask, 'wwd-boards', array( $this, 'render_boards' ) );
 		add_submenu_page( 'wwd', __( 'Data & schema', 'wp-wren-dashboards' ), __( 'Data & schema', 'wp-wren-dashboards' ), 'manage_options', 'wwd-schema', array( $this, 'render_schema' ) );
+		add_submenu_page( 'wwd', __( 'Settings', 'wp-wren-dashboards' ), __( 'Settings', 'wp-wren-dashboards' ), 'manage_options', 'wwd-settings', array( $this, 'render_settings' ) );
 		add_submenu_page( 'wwd', __( 'Query log', 'wp-wren-dashboards' ), __( 'Query log', 'wp-wren-dashboards' ), 'manage_options', 'wwd-log', array( $this, 'render_log' ) );
+	}
+
+	/**
+	 * The ask form, as a screen rather than an embed.
+	 *
+	 * @return void
+	 */
+	public function render_ask() {
+		$shortcodes = wwd()->shortcodes();
+
+		echo '<div class="wrap wwd-wrap wwd-screen">';
+		echo '<h1>' . esc_html__( 'Ask your data', 'wp-wren-dashboards' ) . '</h1>';
+
+		// The renderer escapes everything it prints; it returns finished markup.
+		echo $shortcodes->render_ask( array( 'height' => 340 ) ); // phpcs:ignore WordPress.Security.EscapeOutput
+
+		echo '</div>';
+	}
+
+	/**
+	 * A saved dashboard, picked from a list.
+	 *
+	 * @return void
+	 */
+	public function render_boards() {
+		$boards = WWD_Dashboards::all();
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- choosing what to look at changes nothing.
+		$current = isset( $_GET['board'] ) ? (int) $_GET['board'] : 0;
+
+		if ( ! $current && ! empty( $boards ) ) {
+			$current = (int) $boards[0]->ID;
+		}
+
+		echo '<div class="wrap wwd-wrap wwd-screen">';
+		echo '<h1>' . esc_html__( 'Dashboards', 'wp-wren-dashboards' ) . '</h1>';
+
+		if ( empty( $boards ) ) {
+			echo '<p>' . esc_html__( 'No dashboards yet. Ask a question, then save the answer as a panel.', 'wp-wren-dashboards' ) . '</p>';
+			echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=wwd' ) ) . '">'
+				. esc_html__( 'Ask a question', 'wp-wren-dashboards' ) . '</a></p></div>';
+
+			return;
+		}
+
+		if ( count( $boards ) > 1 ) {
+			echo '<ul class="wwd-board-switch">';
+
+			foreach ( $boards as $board ) {
+				printf(
+					'<li><a class="button%1$s" href="%2$s">%3$s</a></li>',
+					(int) $board->ID === $current ? ' button-primary' : '',
+					esc_url( admin_url( 'admin.php?page=wwd-boards&board=' . (int) $board->ID ) ),
+					esc_html( get_the_title( $board ) )
+				);
+			}
+
+			echo '</ul>';
+		}
+
+		echo wwd()->shortcodes()->render_dashboard( array( 'id' => $current ) ); // phpcs:ignore WordPress.Security.EscapeOutput
+
+		printf(
+			'<p class="description"><a href="%1$s">%2$s</a> · <code>[wren_dashboard id="%3$d"]</code></p>',
+			esc_url( admin_url( 'edit.php?post_type=' . WWD_Dashboards::POST_TYPE ) ),
+			esc_html__( 'Rename or delete dashboards', 'wp-wren-dashboards' ),
+			(int) $current
+		);
+
+		echo '</div>';
 	}
 
 	/**
@@ -63,6 +140,13 @@ class WWD_Admin {
 	public function assets( $hook ) {
 		if ( false === strpos( (string) $hook, 'wwd' ) && WWD_Dashboards::POST_TYPE !== get_post_type() ) {
 			return;
+		}
+
+		// The ask form and the dashboards are the front-end app, running inside
+		// wp-admin. Enqueueing here rather than while the page prints keeps the
+		// stylesheet in the head where it belongs.
+		if ( preg_match( '/_page_wwd(-boards)?$/', (string) $hook ) ) {
+			wwd()->shortcodes()->enqueue();
 		}
 
 		wp_enqueue_style( 'wwd-admin', WWD_PLUGIN_URL . 'assets/css/wwd-admin.css', array(), WWD_VERSION );
@@ -109,7 +193,7 @@ class WWD_Admin {
 	public function action_links( $links ) {
 		array_unshift(
 			$links,
-			'<a href="' . esc_url( admin_url( 'admin.php?page=wwd' ) ) . '">' . esc_html__( 'Settings', 'wp-wren-dashboards' ) . '</a>'
+			'<a href="' . esc_url( admin_url( 'admin.php?page=wwd-settings' ) ) . '">' . esc_html__( 'Settings', 'wp-wren-dashboards' ) . '</a>'
 		);
 
 		return $links;

@@ -30,6 +30,10 @@ class WWD_Shortcodes {
 		add_shortcode( 'wren_dashboard', array( $this, 'render_dashboard' ) );
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
+
+		// The same app runs inside wp-admin, where it is the main way to use
+		// the plugin rather than an embed.
+		add_action( 'admin_enqueue_scripts', array( $this, 'register_assets' ) );
 	}
 
 	/**
@@ -48,7 +52,7 @@ class WWD_Shortcodes {
 	 *
 	 * @return void
 	 */
-	protected function enqueue() {
+	public function enqueue() {
 		if ( $this->needs_assets ) {
 			return;
 		}
@@ -172,7 +176,7 @@ class WWD_Shortcodes {
 					sprintf(
 						/* translators: %s: settings URL. */
 						__( 'No model is configured yet. <a href="%s">Add an API key</a> and this form starts working.', 'wp-wren-dashboards' ),
-						esc_url( admin_url( 'admin.php?page=wwd' ) )
+						esc_url( admin_url( 'admin.php?page=wwd-settings' ) )
 					)
 				);
 			}
@@ -184,7 +188,7 @@ class WWD_Shortcodes {
 					sprintf(
 						/* translators: %s: settings URL. */
 						__( 'Wren AI is not connected yet. <a href="%s">Set the endpoint</a> first.', 'wp-wren-dashboards' ),
-						esc_url( admin_url( 'admin.php?page=wwd' ) )
+						esc_url( admin_url( 'admin.php?page=wwd-settings' ) )
 					)
 				);
 			}

@@ -31,6 +31,7 @@ modello diretto: si sceglie nelle impostazioni, il resto del plugin è identico.
 - [Requisiti](#requisiti)
 - [Installazione](#installazione)
 - [Configurazione in 3 passi](#configurazione-in-3-passi)
+- [Dove si usa](#dove-si-usa)
 - [Shortcode](#shortcode)
 - [Sicurezza](#sicurezza)
 - [Come funziona dentro](#come-funziona-dentro)
@@ -152,6 +153,22 @@ Crea una pagina (es. `/analytics`) e inserisci:
 ```
 
 Fatto: chi ha il permesso può fare domande e salvare le risposte come pannelli.
+
+## Dove si usa
+
+Tutto sta in **wp-admin → Wren AI**:
+
+| Schermata | A cosa serve |
+|---|---|
+| **Ask** | il form delle domande: è la pagina che si apre cliccando "Wren AI" |
+| **Dashboards** | i pannelli salvati, con il selettore se ne hai più di una |
+| **Dati & schema** | tabelle condivise, colonne protette, contesto di business |
+| **Impostazioni** | motore, modello, permessi, limiti |
+| **Query log** | ogni domanda e ogni statement eseguito |
+
+Gli **shortcode restano**, ma sono per un caso diverso: mostrare una dashboard a
+chi *non* ha accesso a wp-admin — un cliente, un'area riservata, una pagina
+Elementor interna. Per l'uso quotidiano non serve creare nessuna pagina.
 
 ## Shortcode
 
