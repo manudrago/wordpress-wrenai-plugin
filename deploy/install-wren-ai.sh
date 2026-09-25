@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Wren AI for the WP Wren Dashboards plugin, on any Ubuntu/Debian machine.
+# Wren AI for the DataChat AI plugin, on any Ubuntu/Debian machine.
 #
 # Installs Docker and the Wren AI service stack, wires it to a model - a free
 # hosted one, or a local Ollama - and puts an authenticating gateway in front,

@@ -29,6 +29,12 @@ class WWD_Shortcodes {
 		add_shortcode( 'wren_ask', array( $this, 'render_ask' ) );
 		add_shortcode( 'wren_dashboard', array( $this, 'render_dashboard' ) );
 
+		// The plugin was called Wren AI Dashboards until 2.0. Pages out there
+		// still carry those shortcodes, and breaking somebody's published page
+		// over a rename would be indefensible.
+		add_shortcode( 'datachat', array( $this, 'render_ask' ) );
+		add_shortcode( 'datachat_dashboard', array( $this, 'render_dashboard' ) );
+
 		add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
 
 		// The same app runs inside wp-admin, where it is the main way to use
@@ -73,38 +79,38 @@ class WWD_Shortcodes {
 				'pollMs'   => (int) apply_filters( 'wwd_poll_interval_ms', 1200 ),
 				'locale'   => str_replace( '_', '-', get_locale() ),
 				'i18n'     => array(
-					'thinking'    => __( 'Working on it…', 'wp-wren-dashboards' ),
-					'error'       => __( 'Something went wrong.', 'wp-wren-dashboards' ),
-					'rows'        => __( 'rows', 'wp-wren-dashboards' ),
-					'noData'      => __( 'No rows matched that question.', 'wp-wren-dashboards' ),
-					'showSql'     => __( 'Show SQL', 'wp-wren-dashboards' ),
-					'hideSql'     => __( 'Hide SQL', 'wp-wren-dashboards' ),
-					'showTable'   => __( 'Table', 'wp-wren-dashboards' ),
-					'showChart'   => __( 'Chart', 'wp-wren-dashboards' ),
-					'save'        => __( 'Save to dashboard', 'wp-wren-dashboards' ),
-					'saving'      => __( 'Saving…', 'wp-wren-dashboards' ),
-					'saved'       => __( 'Saved to %s', 'wp-wren-dashboards' ),
-					'csv'         => __( 'Download CSV', 'wp-wren-dashboards' ),
-					'stop'        => __( 'Stop', 'wp-wren-dashboards' ),
-					'truncated'   => __( 'Showing the first %d rows.', 'wp-wren-dashboards' ),
-					'cached'      => __( 'cached', 'wp-wren-dashboards' ),
-					'refresh'     => __( 'Refresh', 'wp-wren-dashboards' ),
-					'chooseBoard' => __( 'Choose a dashboard', 'wp-wren-dashboards' ),
-					'noBoards'    => __( 'No dashboards yet — create one under Wren AI → Dashboards.', 'wp-wren-dashboards' ),
-					'panelTitle'  => __( 'Panel title', 'wp-wren-dashboards' ),
-					'width'       => __( 'Width', 'wp-wren-dashboards' ),
-					'widthHalf'   => __( 'Half', 'wp-wren-dashboards' ),
-					'widthFull'   => __( 'Full', 'wp-wren-dashboards' ),
-					'view_column' => __( 'Columns', 'wp-wren-dashboards' ),
-					'view_bar'    => __( 'Bars', 'wp-wren-dashboards' ),
-					'view_line'   => __( 'Line', 'wp-wren-dashboards' ),
-					'view_area'   => __( 'Area', 'wp-wren-dashboards' ),
-					'view_pie'    => __( 'Pie', 'wp-wren-dashboards' ),
-					'otherBar'    => __( 'Everything else', 'wp-wren-dashboards' ),
+					'thinking'    => __( 'Working on it…', 'datachat-ai' ),
+					'error'       => __( 'Something went wrong.', 'datachat-ai' ),
+					'rows'        => __( 'rows', 'datachat-ai' ),
+					'noData'      => __( 'No rows matched that question.', 'datachat-ai' ),
+					'showSql'     => __( 'Show SQL', 'datachat-ai' ),
+					'hideSql'     => __( 'Hide SQL', 'datachat-ai' ),
+					'showTable'   => __( 'Table', 'datachat-ai' ),
+					'showChart'   => __( 'Chart', 'datachat-ai' ),
+					'save'        => __( 'Save to dashboard', 'datachat-ai' ),
+					'saving'      => __( 'Saving…', 'datachat-ai' ),
+					'saved'       => __( 'Saved to %s', 'datachat-ai' ),
+					'csv'         => __( 'Download CSV', 'datachat-ai' ),
+					'stop'        => __( 'Stop', 'datachat-ai' ),
+					'truncated'   => __( 'Showing the first %d rows.', 'datachat-ai' ),
+					'cached'      => __( 'cached', 'datachat-ai' ),
+					'refresh'     => __( 'Refresh', 'datachat-ai' ),
+					'chooseBoard' => __( 'Choose a dashboard', 'datachat-ai' ),
+					'noBoards'    => __( 'No dashboards yet — create one under DataChat → Dashboards.', 'datachat-ai' ),
+					'panelTitle'  => __( 'Panel title', 'datachat-ai' ),
+					'width'       => __( 'Width', 'datachat-ai' ),
+					'widthHalf'   => __( 'Half', 'datachat-ai' ),
+					'widthFull'   => __( 'Full', 'datachat-ai' ),
+					'view_column' => __( 'Columns', 'datachat-ai' ),
+					'view_bar'    => __( 'Bars', 'datachat-ai' ),
+					'view_line'   => __( 'Line', 'datachat-ai' ),
+					'view_area'   => __( 'Area', 'datachat-ai' ),
+					'view_pie'    => __( 'Pie', 'datachat-ai' ),
+					'otherBar'    => __( 'Everything else', 'datachat-ai' ),
 					/* translators: %d: how many categories were grouped into one bar. */
-					'otherNote'   => __( 'The %d smallest are grouped together; the table lists them all.', 'wp-wren-dashboards' ),
-					'widthThird'  => __( 'Third', 'wp-wren-dashboards' ),
-					'cancel'      => __( 'Cancel', 'wp-wren-dashboards' ),
+					'otherNote'   => __( 'The %d smallest are grouped together; the table lists them all.', 'datachat-ai' ),
+					'widthThird'  => __( 'Third', 'datachat-ai' ),
+					'cancel'      => __( 'Cancel', 'datachat-ai' ),
 				),
 			)
 		);
@@ -126,10 +132,10 @@ class WWD_Shortcodes {
 		}
 
 		$defaults = array(
-			__( 'How many posts were published each month this year?', 'wp-wren-dashboards' ),
-			__( 'Top 10 posts by number of comments', 'wp-wren-dashboards' ),
-			__( 'Published posts by category', 'wp-wren-dashboards' ),
-			__( 'How many comments are waiting for moderation?', 'wp-wren-dashboards' ),
+			__( 'How many posts were published each month this year?', 'datachat-ai' ),
+			__( 'Top 10 posts by number of comments', 'datachat-ai' ),
+			__( 'Published posts by category', 'datachat-ai' ),
+			__( 'How many comments are waiting for moderation?', 'datachat-ai' ),
 		);
 
 		/**
@@ -151,7 +157,7 @@ class WWD_Shortcodes {
 			array(
 				'dashboard'   => '',
 				'title'       => '',
-				'placeholder' => __( 'Ask anything about your data…', 'wp-wren-dashboards' ),
+				'placeholder' => __( 'Ask anything about your data…', 'datachat-ai' ),
 				'examples'    => '',
 				'height'      => '340',
 			),
@@ -168,14 +174,14 @@ class WWD_Shortcodes {
 
 		if ( ! WWD_Settings::is_configured() ) {
 			if ( ! current_user_can( 'manage_options' ) ) {
-				return $this->notice( __( 'Data questions are not available yet.', 'wp-wren-dashboards' ) );
+				return $this->notice( __( 'Data questions are not available yet.', 'datachat-ai' ) );
 			}
 
 			if ( 'wren' !== WWD_Settings::get( 'engine', 'direct' ) ) {
 				return $this->notice(
 					sprintf(
 						/* translators: %s: settings URL. */
-						__( 'No model is configured yet. <a href="%s">Add an API key</a> and this form starts working.', 'wp-wren-dashboards' ),
+						__( 'No model is configured yet. <a href="%s">Add an API key</a> and this form starts working.', 'datachat-ai' ),
 						esc_url( admin_url( 'admin.php?page=wwd-settings' ) )
 					)
 				);
@@ -187,7 +193,7 @@ class WWD_Shortcodes {
 				return $this->notice(
 					sprintf(
 						/* translators: %s: settings URL. */
-						__( 'Wren AI is not connected yet. <a href="%s">Set the endpoint</a> first.', 'wp-wren-dashboards' ),
+						__( 'Wren AI is not connected yet. <a href="%s">Set the endpoint</a> first.', 'datachat-ai' ),
 						esc_url( admin_url( 'admin.php?page=wwd-settings' ) )
 					)
 				);
@@ -196,7 +202,7 @@ class WWD_Shortcodes {
 			return $this->notice(
 				sprintf(
 					/* translators: %s: schema screen URL. */
-					__( 'Wren AI is connected, but the database schema has not been deployed yet. Open <a href="%s">Data &amp; schema</a>, then press "Build &amp; deploy schema" and wait for it to finish.', 'wp-wren-dashboards' ),
+					__( 'Wren AI is connected, but the database schema has not been deployed yet. Open <a href="%s">Data &amp; schema</a>, then press "Build &amp; deploy schema" and wait for it to finish.', 'datachat-ai' ),
 					esc_url( admin_url( 'admin.php?page=wwd-schema' ) )
 				)
 			);
@@ -219,16 +225,16 @@ class WWD_Shortcodes {
 
 			<form class="wwd-ask" autocomplete="off">
 				<label class="screen-reader-text" for="<?php echo esc_attr( $uid ); ?>-q">
-					<?php esc_html_e( 'Your question', 'wp-wren-dashboards' ); ?>
+					<?php esc_html_e( 'Your question', 'datachat-ai' ); ?>
 				</label>
 				<textarea id="<?php echo esc_attr( $uid ); ?>-q" class="wwd-ask__input" rows="2"
 					placeholder="<?php echo esc_attr( $atts['placeholder'] ); ?>"></textarea>
 				<div class="wwd-ask__actions">
 					<button type="submit" class="wwd-btn wwd-btn--primary">
-						<?php esc_html_e( 'Ask', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Ask', 'datachat-ai' ); ?>
 					</button>
 					<button type="button" class="wwd-btn wwd-btn--ghost wwd-ask__reset">
-						<?php esc_html_e( 'New topic', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'New topic', 'datachat-ai' ); ?>
 					</button>
 				</div>
 			</form>
@@ -268,7 +274,7 @@ class WWD_Shortcodes {
 		$dashboard_id = (int) $atts['id'];
 
 		if ( ! $dashboard_id || WWD_Dashboards::POST_TYPE !== get_post_type( $dashboard_id ) ) {
-			return $this->notice( __( 'That dashboard does not exist.', 'wp-wren-dashboards' ) );
+			return $this->notice( __( 'That dashboard does not exist.', 'datachat-ai' ) );
 		}
 
 		$rest = new WWD_REST();
@@ -281,7 +287,7 @@ class WWD_Shortcodes {
 		$panels = WWD_Dashboards::panels( $dashboard_id );
 
 		if ( empty( $panels ) ) {
-			return $this->notice( __( 'This dashboard has no panels yet.', 'wp-wren-dashboards' ) );
+			return $this->notice( __( 'This dashboard has no panels yet.', 'datachat-ai' ) );
 		}
 
 		$this->enqueue();
@@ -302,7 +308,7 @@ class WWD_Shortcodes {
 						<div class="wwd-panel__head">
 							<h3 class="wwd-panel__title"><?php echo esc_html( $panel['title'] ); ?></h3>
 							<button type="button" class="wwd-icon-btn wwd-panel__refresh"
-								title="<?php esc_attr_e( 'Refresh', 'wp-wren-dashboards' ); ?>" aria-label="<?php esc_attr_e( 'Refresh', 'wp-wren-dashboards' ); ?>">&#8635;</button>
+								title="<?php esc_attr_e( 'Refresh', 'datachat-ai' ); ?>" aria-label="<?php esc_attr_e( 'Refresh', 'datachat-ai' ); ?>">&#8635;</button>
 						</div>
 						<div class="wwd-panel__body">
 							<div class="wwd-skeleton"></div>

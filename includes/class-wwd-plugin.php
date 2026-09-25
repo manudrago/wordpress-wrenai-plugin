@@ -78,9 +78,9 @@ class WWD_Plugin {
 
 		$message = 'wren' === WWD_Settings::get( 'engine', 'direct' )
 			/* translators: %s: settings URL. */
-			? __( '<strong>Wren AI Dashboards</strong> needs two things before it can answer questions: a Wren AI endpoint and a deployed schema. <a href="%s">Finish the setup</a>.', 'wp-wren-dashboards' )
+			? __( '<strong>DataChat AI</strong> needs two things before it can answer questions: a Wren AI endpoint and a deployed schema. <a href="%s">Finish the setup</a>.', 'datachat-ai' )
 			/* translators: %s: settings URL. */
-			: __( '<strong>Wren AI Dashboards</strong> needs an API key for a language model before it can answer questions. <a href="%s">Finish the setup</a> - it takes a minute.', 'wp-wren-dashboards' );
+			: __( '<strong>DataChat AI</strong> needs an API key for a language model before it can answer questions. <a href="%s">Finish the setup</a> - it takes a minute.', 'datachat-ai' );
 
 		echo '<div class="notice notice-info is-dismissible"><p>';
 		printf( wp_kses_post( $message ), esc_url( $url ) );
@@ -96,14 +96,14 @@ class WWD_Plugin {
 		if ( 'wren' !== WWD_Settings::get( 'engine', 'direct' ) ) {
 			return new WP_Error(
 				'wwd_no_deploy_needed',
-				__( 'Nothing to deploy: the model reads the schema with every question. Pick the tables and save, and you are done.', 'wp-wren-dashboards' )
+				__( 'Nothing to deploy: the model reads the schema with every question. Pick the tables and save, and you are done.', 'datachat-ai' )
 			);
 		}
 
 		$mdl = WWD_Schema::build_mdl();
 
 		if ( empty( $mdl['models'] ) ) {
-			return new WP_Error( 'wwd_no_models', __( 'No tables are shared with Wren AI yet.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_models', __( 'No tables are shared yet.', 'datachat-ai' ) );
 		}
 
 		$hash   = WWD_Schema::mdl_hash( $mdl );

@@ -1,18 +1,18 @@
-=== WP Wren Dashboards ===
+=== DataChat AI ===
 Contributors: manudrago
-Tags: analytics, dashboard, ai, charts, text-to-sql
+Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.8.0
+Stable tag: 2.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Ask anything about your WordPress data in plain language and get instant, saveable dashboards. One API key, no server.
+Ask your WordPress and WooCommerce data anything in plain language. Charts and dashboards, no server, one API key.
 
 == Description ==
 
-WP Wren Dashboards puts a question box on any page. Someone types "how many posts did we
+DataChat AI puts a question box on any page. Someone types "how many posts did we
 publish each month this year?", and gets a chart, a table and a CSV — then saves it as a panel
 on a dashboard that anybody can embed with a shortcode.
 
@@ -24,7 +24,7 @@ SVG — no external chart library, no CDN.
 Nothing to install anywhere: an API key is the whole setup, and Google AI Studio and Groq give
 one away. A Wren AI service can be used instead of the model, for sites that already run one.
 
-Everything happens in wp-admin under **Wren AI**: Ask, Dashboards, Data & schema, Settings,
+Everything happens in wp-admin under **DataChat**: Ask, Dashboards, Data & schema, Settings,
 Query log. No page to create, no shortcode to paste, and the WordPress login is the only door.
 
 **Shortcodes** (optional, for showing a dashboard to people without wp-admin access)
@@ -46,11 +46,11 @@ and statement is logged.
 == Installation ==
 
 1. Upload the plugin to /wp-content/plugins/ and activate it.
-2. Wren AI → Settings: paste an API key (get a free one at aistudio.google.com/apikey) and
+2. DataChat → Settings: paste an API key (get a free one at aistudio.google.com/apikey) and
    press "Test connection".
-3. Wren AI → Data & schema: pick the tables to share and add business context. Nothing to
+3. DataChat → Data & schema: pick the tables to share and add business context. Nothing to
    deploy — the schema travels with every question.
-4. Wren AI → Ask, and ask something. Optionally put `[wren_ai_dashboard]` on a page to reach
+4. DataChat → Ask, and ask something. Optionally put `[wren_ai_dashboard]` on a page to reach
    people who do not have wp-admin access.
 
 Prefer to run Wren AI? Pick that engine in Settings; deploy/README.md installs one on any
@@ -82,6 +82,13 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.0.0 =
+* New name: DataChat AI. The plugin no longer runs on Wren AI by default, and carrying
+  somebody else's product name was misleading as well as risky. Wren AI remains one of the
+  engines, named where it is meant.
+* New shortcodes [datachat] and [datachat_dashboard]; the old ones keep working.
+* The REST routes moved to /wp-json/datachat/v1, with the old namespace still answering.
 
 = 1.8.0 =
 * The plugin lives in wp-admin now: "Wren AI" opens the ask form, and a Dashboards screen shows

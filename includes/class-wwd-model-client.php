@@ -66,28 +66,28 @@ class WWD_Model_Client {
 	public static function providers() {
 		return array(
 			'google' => array(
-				'label' => __( 'Google AI Studio (free tier)', 'wp-wren-dashboards' ),
+				'label' => __( 'Google AI Studio (free tier)', 'datachat-ai' ),
 				'base'  => 'https://generativelanguage.googleapis.com/v1beta',
 				'model' => 'gemini-3.6-flash',
 				'keys'  => 'https://aistudio.google.com/apikey',
 				'shape' => 'google',
 			),
 			'groq'   => array(
-				'label' => __( 'Groq (free tier)', 'wp-wren-dashboards' ),
+				'label' => __( 'Groq (free tier)', 'datachat-ai' ),
 				'base'  => 'https://api.groq.com/openai/v1',
 				'model' => 'llama-3.3-70b-versatile',
 				'keys'  => 'https://console.groq.com/keys',
 				'shape' => 'openai',
 			),
 			'openai' => array(
-				'label' => __( 'OpenAI', 'wp-wren-dashboards' ),
+				'label' => __( 'OpenAI', 'datachat-ai' ),
 				'base'  => 'https://api.openai.com/v1',
 				'model' => 'gpt-4.1-mini',
 				'keys'  => 'https://platform.openai.com/api-keys',
 				'shape' => 'openai',
 			),
 			'custom' => array(
-				'label' => __( 'Anything OpenAI-compatible (Ollama, LM Studio, OpenRouter…)', 'wp-wren-dashboards' ),
+				'label' => __( 'Anything OpenAI-compatible (Ollama, LM Studio, OpenRouter…)', 'datachat-ai' ),
 				'base'  => '',
 				'model' => '',
 				'keys'  => '',
@@ -170,7 +170,7 @@ class WWD_Model_Client {
 		if ( ! $this->is_ready() ) {
 			return new WP_Error(
 				'wwd_model_unconfigured',
-				__( 'No model is configured yet. Add an API key under Wren AI → Settings.', 'wp-wren-dashboards' )
+				__( 'No model is configured yet. Add an API key under DataChat → Settings.', 'datachat-ai' )
 			);
 		}
 
@@ -220,7 +220,7 @@ class WWD_Model_Client {
 					'wwd_model_unreachable',
 					sprintf(
 						/* translators: %s: transport error message. */
-						__( 'Could not reach the model: %s', 'wp-wren-dashboards' ),
+						__( 'Could not reach the model: %s', 'datachat-ai' ),
 						$response->get_error_message()
 					),
 					array( 'retry' => true )
@@ -244,8 +244,8 @@ class WWD_Model_Client {
 					return new WP_Error(
 						'wwd_model_not_json',
 						'' === $text
-							? __( 'The model returned an empty answer. Try rephrasing the question, or pick another model.', 'wp-wren-dashboards' )
-							: __( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
+							? __( 'The model returned an empty answer. Try rephrasing the question, or pick another model.', 'datachat-ai' )
+							: __( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'datachat-ai' )
 					);
 				}
 
@@ -299,7 +299,7 @@ class WWD_Model_Client {
 					'wwd_model_too_long',
 					sprintf(
 						/* translators: 1: model name, 2: provider message. */
-						__( 'The schema of this site does not fit in the context window of "%1$s" (%2$s). Share fewer tables under Wren AI → Data & schema, or pick a model with a larger context window.', 'wp-wren-dashboards' ),
+						__( 'The schema of this site does not fit in the context window of "%1$s" (%2$s). Share fewer tables under DataChat → Data & schema, or pick a model with a larger context window.', 'datachat-ai' ),
 						$this->model,
 						rtrim( self::message( $data ), '.' )
 					)
@@ -311,7 +311,7 @@ class WWD_Model_Client {
 
 		return new WP_Error(
 			'wwd_model_not_json',
-			__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
+			__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'datachat-ai' )
 		);
 	}
 
@@ -452,7 +452,7 @@ class WWD_Model_Client {
 		if ( '' === $this->base ) {
 			return new WP_Error(
 				'wwd_model_unconfigured',
-				__( 'Set an API base URL first.', 'wp-wren-dashboards' )
+				__( 'Set an API base URL first.', 'datachat-ai' )
 			);
 		}
 
@@ -484,7 +484,7 @@ class WWD_Model_Client {
 				'wwd_model_unreachable',
 				sprintf(
 					/* translators: %s: transport error message. */
-					__( 'Could not reach the model: %s', 'wp-wren-dashboards' ),
+					__( 'Could not reach the model: %s', 'datachat-ai' ),
 					$response->get_error_message()
 				),
 				array( 'retry' => true )
@@ -504,7 +504,7 @@ class WWD_Model_Client {
 		if ( empty( $models ) ) {
 			return new WP_Error(
 				'wwd_model_list_empty',
-				__( 'The provider did not list any usable model for this key.', 'wp-wren-dashboards' )
+				__( 'The provider did not list any usable model for this key.', 'datachat-ai' )
 			);
 		}
 
@@ -750,7 +750,7 @@ class WWD_Model_Client {
 				'wwd_model_unauthorised',
 				sprintf(
 					/* translators: %s: provider message. */
-					__( 'The model provider refused the API key: %s', 'wp-wren-dashboards' ),
+					__( 'The model provider refused the API key: %s', 'datachat-ai' ),
 					$detail
 				)
 			);
@@ -761,7 +761,7 @@ class WWD_Model_Client {
 				'wwd_model_rate_limited',
 				sprintf(
 					/* translators: %s: provider message. */
-					__( 'The model provider is rate limiting this key: %s', 'wp-wren-dashboards' ),
+					__( 'The model provider is rate limiting this key: %s', 'datachat-ai' ),
 					$detail
 				),
 				array( 'retry' => true )
@@ -776,7 +776,7 @@ class WWD_Model_Client {
 				'wwd_model_unknown',
 				sprintf(
 					/* translators: 1: model name, 2: provider message. */
-					__( 'The provider does not know the model "%1$s": %2$s Under Wren AI → Settings, press "List what this key can use" and pick one.', 'wp-wren-dashboards' ),
+					__( 'The provider does not know the model "%1$s": %2$s Under DataChat → Settings, press "List what this key can use" and pick one.', 'datachat-ai' ),
 					$this->model,
 					rtrim( $detail, '.' ) . '.'
 				)
@@ -787,7 +787,7 @@ class WWD_Model_Client {
 			'wwd_model_http_error',
 			sprintf(
 				/* translators: 1: HTTP status, 2: provider message. */
-				__( 'The model provider answered HTTP %1$d: %2$s', 'wp-wren-dashboards' ),
+				__( 'The model provider answered HTTP %1$d: %2$s', 'datachat-ai' ),
 				$code,
 				$detail
 			),

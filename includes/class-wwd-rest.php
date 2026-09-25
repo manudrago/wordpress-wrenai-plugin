@@ -12,7 +12,13 @@ defined( 'ABSPATH' ) || exit;
  */
 class WWD_REST {
 
-	const NAMESPACE_V1 = 'wren-ai/v1';
+	const NAMESPACE_V1 = 'datachat/v1';
+
+	/**
+	 * The namespace this plugin answered on before 2.0. A paired server, or a
+	 * page cached with the old script, still calls it.
+	 */
+	const LEGACY_NAMESPACE = 'wren-ai/v1';
 
 	/**
 	 * Hook the routes.
@@ -29,8 +35,19 @@ class WWD_REST {
 	 * @return void
 	 */
 	public function register_routes() {
+		$this->routes( self::NAMESPACE_V1 );
+		$this->routes( self::LEGACY_NAMESPACE );
+	}
+
+	/**
+	 * Every route, under one namespace.
+	 *
+	 * @param string $namespace Namespace to register under.
+	 * @return void
+	 */
+	protected function routes( $namespace ) {
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/ask',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -50,7 +67,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/ask/(?P<id>[a-zA-Z0-9\-]+)',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -60,7 +77,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/ask/(?P<id>[a-zA-Z0-9\-]+)/stop',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -70,7 +87,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/dashboards',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -80,7 +97,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/dashboards/(?P<id>\d+)/panels',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -99,7 +116,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/dashboards/(?P<id>\d+)/panels/(?P<panel>[a-zA-Z0-9\-]+)',
 			array(
 				'methods'             => WP_REST_Server::DELETABLE,
@@ -109,7 +126,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/dashboards/(?P<id>\d+)/panels/(?P<panel>[a-zA-Z0-9\-]+)/data',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -119,7 +136,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/schema/sync',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -129,7 +146,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/schema/status',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -145,7 +162,7 @@ class WWD_REST {
 		 * WordPress account.
 		 */
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/pair',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -167,7 +184,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/pair/open',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -183,7 +200,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/pair/close',
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
@@ -193,7 +210,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/pair/status',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -203,7 +220,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/models',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -213,7 +230,7 @@ class WWD_REST {
 		);
 
 		register_rest_route(
-			self::NAMESPACE_V1,
+			$namespace,
 			'/health',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -238,7 +255,7 @@ class WWD_REST {
 		if ( ! is_user_logged_in() ) {
 			return new WP_Error(
 				'wwd_not_logged_in',
-				__( 'You need to be logged in to ask questions about this site\'s data.', 'wp-wren-dashboards' ),
+				__( 'You need to be logged in to ask questions about this site\'s data.', 'datachat-ai' ),
 				array( 'status' => 401 )
 			);
 		}
@@ -246,7 +263,7 @@ class WWD_REST {
 		if ( ! current_user_can( $capability ) ) {
 			return new WP_Error(
 				'wwd_forbidden',
-				__( 'Your account is not allowed to query this data.', 'wp-wren-dashboards' ),
+				__( 'Your account is not allowed to query this data.', 'datachat-ai' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -265,7 +282,7 @@ class WWD_REST {
 		if ( ! current_user_can( $capability ) ) {
 			return new WP_Error(
 				'wwd_forbidden',
-				__( 'Your account is not allowed to change dashboards.', 'wp-wren-dashboards' ),
+				__( 'Your account is not allowed to change dashboards.', 'datachat-ai' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -280,7 +297,7 @@ class WWD_REST {
 	 */
 	public function can_manage() {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return new WP_Error( 'wwd_forbidden', __( 'Administrator access required.', 'wp-wren-dashboards' ), array( 'status' => 403 ) );
+			return new WP_Error( 'wwd_forbidden', __( 'Administrator access required.', 'datachat-ai' ), array( 'status' => 403 ) );
 		}
 
 		return true;
@@ -296,7 +313,7 @@ class WWD_REST {
 		if ( WWD_Logger::is_rate_limited() ) {
 			return new WP_Error(
 				'wwd_rate_limited',
-				__( 'Too many questions in a short time. Please wait a moment.', 'wp-wren-dashboards' ),
+				__( 'Too many questions in a short time. Please wait a moment.', 'datachat-ai' ),
 				array( 'status' => 429 )
 			);
 		}
@@ -389,7 +406,7 @@ class WWD_REST {
 		}
 
 		if ( 'done' !== $answer['status'] ) {
-			return new WP_Error( 'wwd_not_ready', __( 'Wait for the answer to finish before saving it.', 'wp-wren-dashboards' ), array( 'status' => 400 ) );
+			return new WP_Error( 'wwd_not_ready', __( 'Wait for the answer to finish before saving it.', 'datachat-ai' ), array( 'status' => 400 ) );
 		}
 
 		$dashboard_id = (int) $request['id'];
@@ -480,7 +497,7 @@ class WWD_REST {
 			return rest_ensure_response(
 				array(
 					'status'  => 'finished',
-					'message' => __( 'The model reads the schema with every question. Nothing to deploy.', 'wp-wren-dashboards' ),
+					'message' => __( 'The model reads the schema with every question. Nothing to deploy.', 'datachat-ai' ),
 				)
 			);
 		}
@@ -491,7 +508,7 @@ class WWD_REST {
 			return rest_ensure_response(
 				array(
 					'status'  => 'none',
-					'message' => __( 'No schema has been deployed yet.', 'wp-wren-dashboards' ),
+					'message' => __( 'No schema has been deployed yet.', 'datachat-ai' ),
 				)
 			);
 		}
@@ -525,7 +542,7 @@ class WWD_REST {
 			return $this->error(
 				new WP_Error(
 					'wwd_pair_rate_limited',
-					__( 'Too many pairing attempts. Try again later.', 'wp-wren-dashboards' ),
+					__( 'Too many pairing attempts. Try again later.', 'datachat-ai' ),
 					array( 'status' => 429 )
 				)
 			);
@@ -543,7 +560,7 @@ class WWD_REST {
 			return $this->error(
 				new WP_Error(
 					'wwd_pair_bad_endpoint',
-					__( 'The endpoint must be an http:// or https:// URL.', 'wp-wren-dashboards' ),
+					__( 'The endpoint must be an http:// or https:// URL.', 'datachat-ai' ),
 					array( 'status' => 400 )
 				)
 			);

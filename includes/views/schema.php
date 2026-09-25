@@ -17,16 +17,16 @@ $wwd_allowed = (array) $settings['allowed_tables'];
 $wwd_core    = WWD_Settings::default_tables();
 ?>
 <div class="wrap wwd-wrap">
-	<h1><?php esc_html_e( 'Data & schema', 'wp-wren-dashboards' ); ?></h1>
+	<h1><?php esc_html_e( 'Data & schema', 'datachat-ai' ); ?></h1>
 
 	<?php if ( 'resync' === $updated ) : ?>
-		<div class="notice notice-warning"><p><?php esc_html_e( 'The shared tables changed. Deploy the schema again so Wren AI sees the new model.', 'wp-wren-dashboards' ); ?></p></div>
+		<div class="notice notice-warning"><p><?php esc_html_e( 'The shared tables changed. With a Wren AI service, deploy the schema again so it sees them.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( $updated ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Saved.', 'wp-wren-dashboards' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Saved.', 'datachat-ai' ); ?></p></div>
 	<?php endif; ?>
 
 	<p class="wwd-lede">
-		<?php esc_html_e( 'Wren AI can only write SQL against the tables you share here, and the plugin refuses to run a query that touches anything else. Share the tables that answer real questions and nothing more.', 'wp-wren-dashboards' ); ?>
+		<?php esc_html_e( 'The model can only write SQL against the tables you share here, and the plugin refuses to run a query that touches anything else. Share the tables that answer real questions and nothing more.', 'datachat-ai' ); ?>
 	</p>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -35,12 +35,12 @@ $wwd_core    = WWD_Settings::default_tables();
 		<input type="hidden" name="wwd[_fields][]" value="allowed_tables">
 		<?php wp_nonce_field( 'wwd_save_settings' ); ?>
 
-		<h2 class="title"><?php esc_html_e( 'Shared tables', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Shared tables', 'datachat-ai' ); ?></h2>
 
 		<p class="wwd-bulk">
-			<button type="button" class="button-link" data-wwd-select="all"><?php esc_html_e( 'Select all', 'wp-wren-dashboards' ); ?></button> ·
-			<button type="button" class="button-link" data-wwd-select="none"><?php esc_html_e( 'Select none', 'wp-wren-dashboards' ); ?></button> ·
-			<button type="button" class="button-link" data-wwd-select="core"><?php esc_html_e( 'WordPress content tables', 'wp-wren-dashboards' ); ?></button>
+			<button type="button" class="button-link" data-wwd-select="all"><?php esc_html_e( 'Select all', 'datachat-ai' ); ?></button> ·
+			<button type="button" class="button-link" data-wwd-select="none"><?php esc_html_e( 'Select none', 'datachat-ai' ); ?></button> ·
+			<button type="button" class="button-link" data-wwd-select="core"><?php esc_html_e( 'WordPress content tables', 'datachat-ai' ); ?></button>
 		</p>
 
 		<div class="wwd-tables">
@@ -54,7 +54,7 @@ $wwd_core    = WWD_Settings::default_tables();
 						<?php
 						printf(
 							/* translators: %d: number of columns. */
-							esc_html( _n( '%d column', '%d columns', count( $wwd_columns ), 'wp-wren-dashboards' ) ),
+							esc_html( _n( '%d column', '%d columns', count( $wwd_columns ), 'datachat-ai' ) ),
 							count( $wwd_columns )
 						);
 						?>
@@ -63,46 +63,46 @@ $wwd_core    = WWD_Settings::default_tables();
 			<?php endforeach; ?>
 		</div>
 
-		<h2 class="title"><?php esc_html_e( 'Never expose these columns', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Never expose these columns', 'datachat-ai' ); ?></h2>
 		<p>
 			<textarea name="wwd[blocked_columns]" rows="2" class="large-text code"><?php echo esc_textarea( implode( ', ', (array) $settings['blocked_columns'] ) ); ?></textarea>
 		</p>
 		<p class="description">
-			<?php esc_html_e( 'Comma separated column names. They are stripped from the model, rejected in generated SQL and masked in results.', 'wp-wren-dashboards' ); ?>
+			<?php esc_html_e( 'Comma separated column names. They are stripped from the model, rejected in generated SQL and masked in results.', 'datachat-ai' ); ?>
 		</p>
 
-		<h2 class="title"><?php esc_html_e( 'Business context', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Business context', 'datachat-ai' ); ?></h2>
 		<p>
 			<textarea name="wwd[custom_instruction]" rows="7" class="large-text code"><?php echo esc_textarea( $settings['custom_instruction'] ); ?></textarea>
 		</p>
 		<p class="description">
-			<?php esc_html_e( 'Sent with every question. Explain what your data means: which post types matter, which meta keys hold prices, what "active customer" means for you. This is the single biggest lever on answer quality.', 'wp-wren-dashboards' ); ?>
+			<?php esc_html_e( 'Sent with every question. Explain what your data means: which post types matter, which meta keys hold prices, what "active customer" means for you. This is the single biggest lever on answer quality.', 'datachat-ai' ); ?>
 		</p>
 
-		<?php submit_button( __( 'Save', 'wp-wren-dashboards' ) ); ?>
+		<?php submit_button( __( 'Save', 'datachat-ai' ) ); ?>
 	</form>
 
 	<?php if ( 'wren' !== $settings['engine'] ) : ?>
 
-	<h2 class="title"><?php esc_html_e( 'What the model is told', 'wp-wren-dashboards' ); ?></h2>
+	<h2 class="title"><?php esc_html_e( 'What the model is told', 'datachat-ai' ); ?></h2>
 	<p>
-		<?php esc_html_e( 'Nothing is deployed anywhere: this description travels with every question and is as current as your last save. It reads your table structure — never your content.', 'wp-wren-dashboards' ); ?>
+		<?php esc_html_e( 'Nothing is deployed anywhere: this description travels with every question and is as current as your last save. It reads your table structure — never your content.', 'datachat-ai' ); ?>
 	</p>
 
 	<p>
-		<button type="button" class="button" id="wwd-preview-mdl"><?php esc_html_e( 'Show what is sent', 'wp-wren-dashboards' ); ?></button>
+		<button type="button" class="button" id="wwd-preview-mdl"><?php esc_html_e( 'Show what is sent', 'datachat-ai' ); ?></button>
 	</p>
 
 	<pre class="wwd-mdl" id="wwd-mdl" hidden><?php echo esc_html( WWD_Schema::prompt_text() ); ?></pre>
 
 	<?php else : ?>
 
-	<h2 class="title"><?php esc_html_e( 'Deploy to Wren AI', 'wp-wren-dashboards' ); ?></h2>
-	<p><?php esc_html_e( 'Building the model reads your table structure — never your content — and sends it to Wren AI so it can plan queries against it.', 'wp-wren-dashboards' ); ?></p>
+	<h2 class="title"><?php esc_html_e( 'Deploy to Wren AI', 'datachat-ai' ); ?></h2>
+	<p><?php esc_html_e( 'Building the model reads your table structure — never your content — and sends it to Wren AI so it can plan queries against it.', 'datachat-ai' ); ?></p>
 
 	<p>
-		<button type="button" class="button button-primary" id="wwd-sync"><?php esc_html_e( 'Build & deploy schema', 'wp-wren-dashboards' ); ?></button>
-		<button type="button" class="button" id="wwd-preview-mdl"><?php esc_html_e( 'Preview the model', 'wp-wren-dashboards' ); ?></button>
+		<button type="button" class="button button-primary" id="wwd-sync"><?php esc_html_e( 'Build & deploy schema', 'datachat-ai' ); ?></button>
+		<button type="button" class="button" id="wwd-preview-mdl"><?php esc_html_e( 'Preview the model', 'datachat-ai' ); ?></button>
 	</p>
 
 	<p class="wwd-status" id="wwd-sync-status">
@@ -110,13 +110,13 @@ $wwd_core    = WWD_Settings::default_tables();
 			<?php
 			printf(
 				/* translators: 1: model hash, 2: time difference. */
-				esc_html__( 'Current model: %1$s, deployed %2$s ago.', 'wp-wren-dashboards' ),
+				esc_html__( 'Current model: %1$s, deployed %2$s ago.', 'datachat-ai' ),
 				esc_html( substr( $settings['mdl_hash'], 0, 8 ) ),
 				esc_html( human_time_diff( (int) $settings['mdl_deployed_at'], time() ) )
 			);
 			?>
 		<?php else : ?>
-			<?php esc_html_e( 'No model deployed yet.', 'wp-wren-dashboards' ); ?>
+			<?php esc_html_e( 'No model deployed yet.', 'datachat-ai' ); ?>
 		<?php endif; ?>
 	</p>
 
@@ -124,12 +124,12 @@ $wwd_core    = WWD_Settings::default_tables();
 
 	<?php endif; ?>
 
-	<h2 class="title"><?php esc_html_e( 'Hardening', 'wp-wren-dashboards' ); ?></h2>
-	<p><?php esc_html_e( 'For the strongest setup, create a MySQL user with SELECT rights only on the shared tables and add its credentials to wp-config.php:', 'wp-wren-dashboards' ); ?></p>
+	<h2 class="title"><?php esc_html_e( 'Hardening', 'datachat-ai' ); ?></h2>
+	<p><?php esc_html_e( 'For the strongest setup, create a MySQL user with SELECT rights only on the shared tables and add its credentials to wp-config.php:', 'datachat-ai' ); ?></p>
 	<pre class="wwd-code">define( 'WWD_DB_USER', 'wp_readonly' );
 define( 'WWD_DB_PASSWORD', '…' );
 // Optional, they default to DB_NAME / DB_HOST:
 define( 'WWD_DB_NAME', '<?php echo esc_html( $wpdb->dbname ); ?>' );
 define( 'WWD_DB_HOST', '<?php echo esc_html( DB_HOST ); ?>' );</pre>
-	<p class="description"><?php esc_html_e( 'With those constants set, every analytics query runs on that connection, so even a query that somehow slipped past the SQL guard could not write anything.', 'wp-wren-dashboards' ); ?></p>
+	<p class="description"><?php esc_html_e( 'With those constants set, every analytics query runs on that connection, so even a query that somehow slipped past the SQL guard could not write anything.', 'datachat-ai' ); ?></p>
 </div>

@@ -22,7 +22,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 	 * @return string
 	 */
 	public function label() {
-		return __( 'Wren AI service', 'wp-wren-dashboards' );
+		return __( 'Wren AI service', 'datachat-ai' );
 	}
 
 	/**
@@ -48,7 +48,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 		if ( '' === (string) WWD_Settings::get( 'mdl_hash' ) ) {
 			return new WP_Error(
 				'wwd_not_synced',
-				__( 'The database schema has not been shared with Wren AI yet. An administrator has to run a schema sync first.', 'wp-wren-dashboards' )
+				__( 'The database schema has not been shared with Wren AI yet. An administrator has to run a schema sync first.', 'datachat-ai' )
 			);
 		}
 
@@ -72,7 +72,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 		}
 
 		if ( 'indexing' === $state ) {
-			return new WP_Error( 'wwd_indexing', __( 'Wren AI is still indexing the database schema. Try again in a minute.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_indexing', __( 'Wren AI is still indexing the database schema. Try again in a minute.', 'datachat-ai' ) );
 		}
 
 		$detail = isset( $status['error']['message'] ) ? (string) $status['error']['message'] : '';
@@ -81,7 +81,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 			'wwd_index_failed',
 			sprintf(
 				/* translators: %s: error detail from Wren AI. */
-				__( 'Wren AI could not index the database schema, so questions cannot be answered yet. Deploy the schema again from Data & schema. %s', 'wp-wren-dashboards' ),
+				__( 'Wren AI could not index the database schema, so questions cannot be answered yet. Deploy the schema again from Data & schema. %s', 'datachat-ai' ),
 				$detail
 			)
 		);
@@ -122,12 +122,12 @@ class WWD_Engine_Wren extends WWD_Engine {
 		}
 
 		if ( empty( $response['query_id'] ) ) {
-			return new WP_Error( 'wwd_no_query_id', __( 'Wren AI did not start the query.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_query_id', __( 'Wren AI did not start the query.', 'datachat-ai' ) );
 		}
 
 		$result          = $this->sql_result();
 		$result['job']   = (string) $response['query_id'];
-		$result['stage'] = __( 'Understanding the question…', 'wp-wren-dashboards' );
+		$result['stage'] = __( 'Understanding the question…', 'datachat-ai' );
 
 		return $result;
 	}
@@ -150,11 +150,11 @@ class WWD_Engine_Wren extends WWD_Engine {
 		$result = $this->sql_result();
 
 		$stages = array(
-			'understanding' => __( 'Understanding the question…', 'wp-wren-dashboards' ),
-			'searching'     => __( 'Looking through your tables…', 'wp-wren-dashboards' ),
-			'planning'      => __( 'Planning the query…', 'wp-wren-dashboards' ),
-			'generating'    => __( 'Writing SQL…', 'wp-wren-dashboards' ),
-			'correcting'    => __( 'Checking the SQL…', 'wp-wren-dashboards' ),
+			'understanding' => __( 'Understanding the question…', 'datachat-ai' ),
+			'searching'     => __( 'Looking through your tables…', 'datachat-ai' ),
+			'planning'      => __( 'Planning the query…', 'datachat-ai' ),
+			'generating'    => __( 'Writing SQL…', 'datachat-ai' ),
+			'correcting'    => __( 'Checking the SQL…', 'datachat-ai' ),
 		);
 
 		if ( isset( $stages[ $status ] ) ) {
@@ -164,7 +164,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 		}
 
 		if ( 'failed' === $status || 'stopped' === $status ) {
-			$message = __( 'Wren AI could not answer this question.', 'wp-wren-dashboards' );
+			$message = __( 'Wren AI could not answer this question.', 'datachat-ai' );
 
 			if ( ! empty( $answer['error']['message'] ) ) {
 				$message = (string) $answer['error']['message'];
@@ -184,7 +184,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 		}
 
 		if ( '' === $sql ) {
-			$message = __( 'Wren AI answered without a query, so there is nothing to chart. Try rephrasing the question in terms of your data.', 'wp-wren-dashboards' );
+			$message = __( 'Wren AI answered without a query, so there is nothing to chart. Try rephrasing the question in terms of your data.', 'datachat-ai' );
 
 			if ( ! empty( $answer['error']['message'] ) ) {
 				$message = (string) $answer['error']['message'];
@@ -236,7 +236,7 @@ class WWD_Engine_Wren extends WWD_Engine {
 		}
 
 		if ( empty( $chart['query_id'] ) ) {
-			return new WP_Error( 'wwd_no_chart_id', __( 'Wren AI did not start the chart.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_chart_id', __( 'Wren AI did not start the chart.', 'datachat-ai' ) );
 		}
 
 		$result        = $this->chart_result();

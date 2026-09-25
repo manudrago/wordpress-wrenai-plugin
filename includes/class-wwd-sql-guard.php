@@ -91,7 +91,7 @@ class WWD_SQL_Guard {
 	);
 
 	/**
-	 * Validate and rewrite a statement produced by Wren AI.
+	 * Validate and rewrite a statement produced by the model.
 	 *
 	 * @param string $sql Raw SQL.
 	 * @return array|WP_Error Array with `sql` and `tables` on success.
@@ -100,17 +100,17 @@ class WWD_SQL_Guard {
 		$sql = self::normalize( (string) $sql );
 
 		if ( '' === $sql ) {
-			return new WP_Error( 'wwd_empty_sql', __( 'Wren AI did not return a query for this question.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_empty_sql', __( 'The model did not return a query for this question.', 'datachat-ai' ) );
 		}
 
 		$stripped = self::strip_literals( $sql );
 
 		if ( false !== strpos( rtrim( $stripped, "; \t\n\r" ), ';' ) ) {
-			return new WP_Error( 'wwd_multi_statement', __( 'Only a single statement can be executed.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_multi_statement', __( 'Only a single statement can be executed.', 'datachat-ai' ) );
 		}
 
 		if ( ! preg_match( '/^\s*(select|with)\b/i', $stripped ) ) {
-			return new WP_Error( 'wwd_not_select', __( 'Only SELECT queries are allowed.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_not_select', __( 'Only SELECT queries are allowed.', 'datachat-ai' ) );
 		}
 
 		$forbidden = self::find_forbidden( $stripped );
@@ -120,7 +120,7 @@ class WWD_SQL_Guard {
 				'wwd_forbidden_keyword',
 				sprintf(
 					/* translators: %s: SQL keyword. */
-					__( 'The generated query was rejected: it uses "%s", which is not allowed on a read-only connection.', 'wp-wren-dashboards' ),
+					__( 'The generated query was rejected: it uses "%s", which is not allowed on a read-only connection.', 'datachat-ai' ),
 					strtoupper( $forbidden )
 				)
 			);
@@ -133,7 +133,7 @@ class WWD_SQL_Guard {
 				'wwd_blocked_column',
 				sprintf(
 					/* translators: %s: column name. */
-					__( 'The generated query was rejected: the column "%s" is excluded from analytics.', 'wp-wren-dashboards' ),
+					__( 'The generated query was rejected: the column "%s" is excluded from analytics.', 'datachat-ai' ),
 					$blocked
 				)
 			);
@@ -149,14 +149,14 @@ class WWD_SQL_Guard {
 				'wwd_table_not_allowed',
 				sprintf(
 					/* translators: %s: comma separated table names. */
-					__( 'The generated query touches tables that are not shared with Wren AI: %s', 'wp-wren-dashboards' ),
+					__( 'The generated query touches tables that are not shared: %s', 'datachat-ai' ),
 					implode( ', ', $unknown )
 				)
 			);
 		}
 
 		if ( empty( $tables ) ) {
-			return new WP_Error( 'wwd_no_tables', __( 'The generated query does not read any of the shared tables.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_tables', __( 'The generated query does not read any of the shared tables.', 'datachat-ai' ) );
 		}
 
 		$sql = self::enforce_limit( $sql );

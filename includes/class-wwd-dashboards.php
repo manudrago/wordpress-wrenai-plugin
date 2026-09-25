@@ -78,13 +78,13 @@ class WWD_Dashboards {
 			self::POST_TYPE,
 			array(
 				'labels'       => array(
-					'name'          => __( 'Wren Dashboards', 'wp-wren-dashboards' ),
-					'all_items'     => __( 'Manage dashboards', 'wp-wren-dashboards' ),
-					'singular_name' => __( 'Dashboard', 'wp-wren-dashboards' ),
-					'add_new_item'  => __( 'Add dashboard', 'wp-wren-dashboards' ),
-					'edit_item'     => __( 'Edit dashboard', 'wp-wren-dashboards' ),
-					'search_items'  => __( 'Search dashboards', 'wp-wren-dashboards' ),
-					'not_found'     => __( 'No dashboards yet. Ask a question and save the answer as a panel.', 'wp-wren-dashboards' ),
+					'name'          => __( 'Dashboards', 'datachat-ai' ),
+					'all_items'     => __( 'Manage dashboards', 'datachat-ai' ),
+					'singular_name' => __( 'Dashboard', 'datachat-ai' ),
+					'add_new_item'  => __( 'Add dashboard', 'datachat-ai' ),
+					'edit_item'     => __( 'Edit dashboard', 'datachat-ai' ),
+					'search_items'  => __( 'Search dashboards', 'datachat-ai' ),
+					'not_found'     => __( 'No dashboards yet. Ask a question and save the answer as a panel.', 'datachat-ai' ),
 				),
 				'public'       => false,
 				'show_ui'      => true,
@@ -153,7 +153,7 @@ class WWD_Dashboards {
 		$dashboard_id = (int) $dashboard_id;
 
 		if ( self::POST_TYPE !== get_post_type( $dashboard_id ) ) {
-			return new WP_Error( 'wwd_no_dashboard', __( 'That dashboard does not exist.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_dashboard', __( 'That dashboard does not exist.', 'datachat-ai' ) );
 		}
 
 		$prepared = WWD_SQL_Guard::prepare( isset( $panel['sql'] ) ? $panel['sql'] : '' );
@@ -175,7 +175,7 @@ class WWD_Dashboards {
 						'This site can keep %d saved panel. Remove one to save another.',
 						'This site can keep %d saved panels. Remove one to save another.',
 						$limit,
-						'wp-wren-dashboards'
+						'datachat-ai'
 					),
 					$limit
 				),
@@ -305,7 +305,7 @@ class WWD_Dashboards {
 		$panel = self::panel( $dashboard_id, $panel_id );
 
 		if ( ! $panel ) {
-			return new WP_Error( 'wwd_no_panel', __( 'That panel no longer exists.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_panel', __( 'That panel no longer exists.', 'datachat-ai' ) );
 		}
 
 		$result = WWD_Query_Runner::run( $panel['sql'] );

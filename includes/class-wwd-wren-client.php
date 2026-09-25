@@ -69,7 +69,7 @@ class WWD_Wren_Client {
 	 */
 	public function request( $method, $path, $body = null ) {
 		if ( '' === $this->endpoint ) {
-			return new WP_Error( 'wwd_no_endpoint', __( 'The Wren AI endpoint is not configured.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_no_endpoint', __( 'The Wren AI endpoint is not configured.', 'datachat-ai' ) );
 		}
 
 		$url = $this->endpoint . $this->prefix . $path;
@@ -107,7 +107,7 @@ class WWD_Wren_Client {
 				'wwd_http_error',
 				sprintf(
 					/* translators: %s: error message. */
-					__( 'Could not reach Wren AI: %s', 'wp-wren-dashboards' ),
+					__( 'Could not reach Wren AI: %s', 'datachat-ai' ),
 					$response->get_error_message()
 				)
 			);
@@ -136,7 +136,7 @@ class WWD_Wren_Client {
 				'wwd_api_error',
 				sprintf(
 					/* translators: 1: HTTP status code, 2: error detail. */
-					__( 'Wren AI returned HTTP %1$d: %2$s', 'wp-wren-dashboards' ),
+					__( 'Wren AI returned HTTP %1$d: %2$s', 'datachat-ai' ),
 					$code,
 					$detail
 				),
@@ -145,7 +145,7 @@ class WWD_Wren_Client {
 		}
 
 		if ( null === $data && '' !== trim( (string) $raw ) ) {
-			return new WP_Error( 'wwd_bad_json', __( 'Wren AI returned a response that could not be decoded.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_bad_json', __( 'Wren AI returned a response that could not be decoded.', 'datachat-ai' ) );
 		}
 
 		return is_array( $data ) ? $data : array();
@@ -181,7 +181,7 @@ class WWD_Wren_Client {
 				'wwd_api_error',
 				sprintf(
 					/* translators: %d: HTTP status code. */
-					__( 'Wren AI health check failed with HTTP %d.', 'wp-wren-dashboards' ),
+					__( 'Wren AI health check failed with HTTP %d.', 'datachat-ai' ),
 					$code
 				)
 			);

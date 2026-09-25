@@ -95,7 +95,7 @@ abstract class WWD_Engine {
 	public function poll_sql( $job ) {
 		unset( $job );
 
-		return new WP_Error( 'wwd_engine_sync', __( 'This engine answers in one step.', 'wp-wren-dashboards' ) );
+		return new WP_Error( 'wwd_engine_sync', __( 'This engine answers in one step.', 'datachat-ai' ) );
 	}
 
 	/**
@@ -107,7 +107,7 @@ abstract class WWD_Engine {
 	public function poll_chart( $job ) {
 		unset( $job );
 
-		return new WP_Error( 'wwd_engine_sync', __( 'This engine answers in one step.', 'wp-wren-dashboards' ) );
+		return new WP_Error( 'wwd_engine_sync', __( 'This engine answers in one step.', 'datachat-ai' ) );
 	}
 
 	/**

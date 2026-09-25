@@ -28,7 +28,7 @@ Due decisioni, indipendenti tra loro:
 
 ## Il modo più corto: un comando generato da WordPress
 
-**Wren AI → Impostazioni → "Collega un server automaticamente"**: incolli la
+**DataChat → Impostazioni → "Collega un server automaticamente"**: incolli la
 chiave di Google AI Studio (gratuita, la prendi qui sotto), premi *Genera il
 comando* e ottieni una riga sola da incollare come root sulla macchina.
 
@@ -166,7 +166,7 @@ nel rate limit. Per il comportamento originale: `--full-pipeline`.
 
 ## Dopo l'installazione, in WordPress
 
-**Wren AI → Impostazioni**
+**DataChat → Impostazioni**
 
 | Campo | Valore |
 |---|---|
@@ -177,7 +177,7 @@ nel rate limit. Per il comportamento originale: `--full-pipeline`.
 
 → **Test connessione**: deve diventare verde.
 
-**Wren AI → Dati & schema**: scegli le tabelle, scrivi il contesto di business,
+**DataChat → Dati & schema**: scegli le tabelle, scrivi il contesto di business,
 premi **Costruisci e deploya lo schema**, aspetta lo stato `finished`. Con un
 embedder hosted sono secondi; con Ollama su CPU qualche minuto.
 

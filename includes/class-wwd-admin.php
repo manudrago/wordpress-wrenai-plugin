@@ -45,8 +45,8 @@ class WWD_Admin {
 		$ask = (string) WWD_Settings::get( 'ask_capability', 'edit_posts' );
 
 		add_menu_page(
-			__( 'Wren AI', 'wp-wren-dashboards' ),
-			__( 'Wren AI', 'wp-wren-dashboards' ),
+			__( 'DataChat AI', 'datachat-ai' ),
+			__( 'DataChat', 'datachat-ai' ),
 			$ask,
 			'wwd',
 			array( $this, 'render_ask' ),
@@ -54,11 +54,11 @@ class WWD_Admin {
 			58
 		);
 
-		add_submenu_page( 'wwd', __( 'Ask', 'wp-wren-dashboards' ), __( 'Ask', 'wp-wren-dashboards' ), $ask, 'wwd', array( $this, 'render_ask' ) );
-		add_submenu_page( 'wwd', __( 'Dashboards', 'wp-wren-dashboards' ), __( 'Dashboards', 'wp-wren-dashboards' ), $ask, 'wwd-boards', array( $this, 'render_boards' ) );
-		add_submenu_page( 'wwd', __( 'Data & schema', 'wp-wren-dashboards' ), __( 'Data & schema', 'wp-wren-dashboards' ), 'manage_options', 'wwd-schema', array( $this, 'render_schema' ) );
-		add_submenu_page( 'wwd', __( 'Settings', 'wp-wren-dashboards' ), __( 'Settings', 'wp-wren-dashboards' ), 'manage_options', 'wwd-settings', array( $this, 'render_settings' ) );
-		add_submenu_page( 'wwd', __( 'Query log', 'wp-wren-dashboards' ), __( 'Query log', 'wp-wren-dashboards' ), 'manage_options', 'wwd-log', array( $this, 'render_log' ) );
+		add_submenu_page( 'wwd', __( 'Ask', 'datachat-ai' ), __( 'Ask', 'datachat-ai' ), $ask, 'wwd', array( $this, 'render_ask' ) );
+		add_submenu_page( 'wwd', __( 'Dashboards', 'datachat-ai' ), __( 'Dashboards', 'datachat-ai' ), $ask, 'wwd-boards', array( $this, 'render_boards' ) );
+		add_submenu_page( 'wwd', __( 'Data & schema', 'datachat-ai' ), __( 'Data & schema', 'datachat-ai' ), 'manage_options', 'wwd-schema', array( $this, 'render_schema' ) );
+		add_submenu_page( 'wwd', __( 'Settings', 'datachat-ai' ), __( 'Settings', 'datachat-ai' ), 'manage_options', 'wwd-settings', array( $this, 'render_settings' ) );
+		add_submenu_page( 'wwd', __( 'Query log', 'datachat-ai' ), __( 'Query log', 'datachat-ai' ), 'manage_options', 'wwd-log', array( $this, 'render_log' ) );
 	}
 
 	/**
@@ -70,7 +70,7 @@ class WWD_Admin {
 		$shortcodes = wwd()->shortcodes();
 
 		echo '<div class="wrap wwd-wrap wwd-screen">';
-		echo '<h1>' . esc_html__( 'Ask your data', 'wp-wren-dashboards' ) . '</h1>';
+		echo '<h1>' . esc_html__( 'Ask your data', 'datachat-ai' ) . '</h1>';
 
 		// The renderer escapes everything it prints; it returns finished markup.
 		echo $shortcodes->render_ask( array( 'height' => 340 ) ); // phpcs:ignore WordPress.Security.EscapeOutput
@@ -94,12 +94,12 @@ class WWD_Admin {
 		}
 
 		echo '<div class="wrap wwd-wrap wwd-screen">';
-		echo '<h1>' . esc_html__( 'Dashboards', 'wp-wren-dashboards' ) . '</h1>';
+		echo '<h1>' . esc_html__( 'Dashboards', 'datachat-ai' ) . '</h1>';
 
 		if ( empty( $boards ) ) {
-			echo '<p>' . esc_html__( 'No dashboards yet. Ask a question, then save the answer as a panel.', 'wp-wren-dashboards' ) . '</p>';
+			echo '<p>' . esc_html__( 'No dashboards yet. Ask a question, then save the answer as a panel.', 'datachat-ai' ) . '</p>';
 			echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=wwd' ) ) . '">'
-				. esc_html__( 'Ask a question', 'wp-wren-dashboards' ) . '</a></p></div>';
+				. esc_html__( 'Ask a question', 'datachat-ai' ) . '</a></p></div>';
 
 			return;
 		}
@@ -124,7 +124,7 @@ class WWD_Admin {
 		printf(
 			'<p class="description"><a href="%1$s">%2$s</a> · <code>[wren_dashboard id="%3$d"]</code></p>',
 			esc_url( admin_url( 'edit.php?post_type=' . WWD_Dashboards::POST_TYPE ) ),
-			esc_html__( 'Rename or delete dashboards', 'wp-wren-dashboards' ),
+			esc_html__( 'Rename or delete dashboards', 'datachat-ai' ),
 			(int) $current
 		);
 
@@ -166,19 +166,19 @@ class WWD_Admin {
 				 */
 				'bootstrap' => apply_filters( 'wwd_bootstrap_url', WWD_Admin::BOOTSTRAP_URL ),
 				'i18n'      => array(
-					'checking'  => __( 'Checking…', 'wp-wren-dashboards' ),
-					'syncing'   => __( 'Sending the schema to Wren AI…', 'wp-wren-dashboards' ),
-					'indexing'  => __( 'Wren AI is indexing the schema…', 'wp-wren-dashboards' ),
-					'synced'    => __( 'Schema deployed. You can start asking questions.', 'wp-wren-dashboards' ),
-					'failed'    => __( 'Failed', 'wp-wren-dashboards' ),
-					'connected' => __( 'Connected to Wren AI', 'wp-wren-dashboards' ),
-					'waiting'   => __( 'Waiting for the server to report in…', 'wp-wren-dashboards' ),
-					'paired'    => __( 'Server connected. Reloading…', 'wp-wren-dashboards' ),
-					'pairOff'   => __( 'Pairing closed.', 'wp-wren-dashboards' ),
-					'expired'   => __( 'The code expired before any server used it.', 'wp-wren-dashboards' ),
-					'asking'    => __( 'Asking the provider…', 'wp-wren-dashboards' ),
-					'models'    => __( 'models available — click one to use it, then save.', 'wp-wren-dashboards' ),
-					'picked'    => __( 'Picked. Save the settings to use it.', 'wp-wren-dashboards' ),
+					'checking'  => __( 'Checking…', 'datachat-ai' ),
+					'syncing'   => __( 'Sending the schema to Wren AI…', 'datachat-ai' ),
+					'indexing'  => __( 'Wren AI is indexing the schema…', 'datachat-ai' ),
+					'synced'    => __( 'Schema deployed. You can start asking questions.', 'datachat-ai' ),
+					'failed'    => __( 'Failed', 'datachat-ai' ),
+					'connected' => __( 'Connected to Wren AI', 'datachat-ai' ),
+					'waiting'   => __( 'Waiting for the server to report in…', 'datachat-ai' ),
+					'paired'    => __( 'Server connected. Reloading…', 'datachat-ai' ),
+					'pairOff'   => __( 'Pairing closed.', 'datachat-ai' ),
+					'expired'   => __( 'The code expired before any server used it.', 'datachat-ai' ),
+					'asking'    => __( 'Asking the provider…', 'datachat-ai' ),
+					'models'    => __( 'models available — click one to use it, then save.', 'datachat-ai' ),
+					'picked'    => __( 'Picked. Save the settings to use it.', 'datachat-ai' ),
 				),
 			)
 		);
@@ -193,7 +193,7 @@ class WWD_Admin {
 	public function action_links( $links ) {
 		array_unshift(
 			$links,
-			'<a href="' . esc_url( admin_url( 'admin.php?page=wwd-settings' ) ) . '">' . esc_html__( 'Settings', 'wp-wren-dashboards' ) . '</a>'
+			'<a href="' . esc_url( admin_url( 'admin.php?page=wwd-settings' ) ) . '">' . esc_html__( 'Settings', 'datachat-ai' ) . '</a>'
 		);
 
 		return $links;
@@ -206,7 +206,7 @@ class WWD_Admin {
 	 */
 	public function save_settings() {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'Administrator access required.', 'wp-wren-dashboards' ) );
+			wp_die( esc_html__( 'Administrator access required.', 'datachat-ai' ) );
 		}
 
 		check_admin_referer( 'wwd_save_settings' );
@@ -248,7 +248,7 @@ class WWD_Admin {
 	 */
 	public function clear_log() {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'Administrator access required.', 'wp-wren-dashboards' ) );
+			wp_die( esc_html__( 'Administrator access required.', 'datachat-ai' ) );
 		}
 
 		check_admin_referer( 'wwd_clear_log' );
@@ -267,7 +267,7 @@ class WWD_Admin {
 	 */
 	public function flush_cache() {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'Administrator access required.', 'wp-wren-dashboards' ) );
+			wp_die( esc_html__( 'Administrator access required.', 'datachat-ai' ) );
 		}
 
 		check_admin_referer( 'wwd_flush_cache' );
@@ -292,7 +292,7 @@ class WWD_Admin {
 		check_admin_referer( 'wwd_panel_' . $dashboard_id . '_' . $panel_id );
 
 		if ( ! current_user_can( 'edit_post', $dashboard_id ) ) {
-			wp_die( esc_html__( 'You cannot edit this dashboard.', 'wp-wren-dashboards' ) );
+			wp_die( esc_html__( 'You cannot edit this dashboard.', 'datachat-ai' ) );
 		}
 
 		if ( 'delete' === $action ) {
@@ -316,7 +316,7 @@ class WWD_Admin {
 	public function meta_boxes() {
 		add_meta_box(
 			'wwd-panels',
-			__( 'Panels', 'wp-wren-dashboards' ),
+			__( 'Panels', 'datachat-ai' ),
 			array( $this, 'render_panels_box' ),
 			WWD_Dashboards::POST_TYPE,
 			'normal',
@@ -325,7 +325,7 @@ class WWD_Admin {
 
 		add_meta_box(
 			'wwd-shortcode',
-			__( 'Publish this dashboard', 'wp-wren-dashboards' ),
+			__( 'Publish this dashboard', 'datachat-ai' ),
 			array( $this, 'render_shortcode_box' ),
 			WWD_Dashboards::POST_TYPE,
 			'side'
@@ -342,16 +342,16 @@ class WWD_Admin {
 		$panels = WWD_Dashboards::panels( $post->ID );
 
 		if ( empty( $panels ) ) {
-			echo '<p>' . esc_html__( 'No panels yet. Open the page with the [wren_ai_dashboard] shortcode, ask a question and choose "Save to dashboard".', 'wp-wren-dashboards' ) . '</p>';
+			echo '<p>' . esc_html__( 'No panels yet. Open the page with the [wren_ai_dashboard] shortcode, ask a question and choose "Save to dashboard".', 'datachat-ai' ) . '</p>';
 
 			return;
 		}
 
 		echo '<table class="widefat striped wwd-panels"><thead><tr>';
-		echo '<th>' . esc_html__( 'Title', 'wp-wren-dashboards' ) . '</th>';
-		echo '<th>' . esc_html__( 'Question', 'wp-wren-dashboards' ) . '</th>';
-		echo '<th>' . esc_html__( 'Chart', 'wp-wren-dashboards' ) . '</th>';
-		echo '<th>' . esc_html__( 'Width', 'wp-wren-dashboards' ) . '</th>';
+		echo '<th>' . esc_html__( 'Title', 'datachat-ai' ) . '</th>';
+		echo '<th>' . esc_html__( 'Question', 'datachat-ai' ) . '</th>';
+		echo '<th>' . esc_html__( 'Chart', 'datachat-ai' ) . '</th>';
+		echo '<th>' . esc_html__( 'Width', 'datachat-ai' ) . '</th>';
 		echo '<th></th></tr></thead><tbody>';
 
 		foreach ( $panels as $panel ) {
@@ -369,12 +369,12 @@ class WWD_Admin {
 			echo '<tr>';
 			echo '<td><strong>' . esc_html( $panel['title'] ) . '</strong><br><code class="wwd-sql">' . esc_html( $panel['sql'] ) . '</code></td>';
 			echo '<td>' . esc_html( $panel['question'] ) . '</td>';
-			echo '<td>' . esc_html( $panel['chart_type'] ? $panel['chart_type'] : __( 'table', 'wp-wren-dashboards' ) ) . '</td>';
+			echo '<td>' . esc_html( $panel['chart_type'] ? $panel['chart_type'] : __( 'table', 'datachat-ai' ) ) . '</td>';
 			echo '<td>' . esc_html( $panel['width'] ) . '</td>';
 			echo '<td class="wwd-panels__actions">';
 			echo '<a href="' . esc_url( wp_nonce_url( add_query_arg( 'do', 'up', $base ), $nonce ) ) . '">&uarr;</a> ';
 			echo '<a href="' . esc_url( wp_nonce_url( add_query_arg( 'do', 'down', $base ), $nonce ) ) . '">&darr;</a> ';
-			echo '<a class="wwd-danger" href="' . esc_url( wp_nonce_url( add_query_arg( 'do', 'delete', $base ), $nonce ) ) . '">' . esc_html__( 'Delete', 'wp-wren-dashboards' ) . '</a>';
+			echo '<a class="wwd-danger" href="' . esc_url( wp_nonce_url( add_query_arg( 'do', 'delete', $base ), $nonce ) ) . '">' . esc_html__( 'Delete', 'datachat-ai' ) . '</a>';
 			echo '</td></tr>';
 		}
 
@@ -388,9 +388,9 @@ class WWD_Admin {
 	 * @return void
 	 */
 	public function render_shortcode_box( $post ) {
-		echo '<p>' . esc_html__( 'Paste this shortcode into any page:', 'wp-wren-dashboards' ) . '</p>';
+		echo '<p>' . esc_html__( 'Paste this shortcode into any page:', 'datachat-ai' ) . '</p>';
 		echo '<input type="text" class="widefat wwd-copy" readonly value="' . esc_attr( '[wren_dashboard id="' . $post->ID . '"]' ) . '">';
-		echo '<p class="description">' . esc_html__( 'Add refresh="60" to reload the panels every 60 seconds.', 'wp-wren-dashboards' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Add refresh="60" to reload the panels every 60 seconds.', 'datachat-ai' ) . '</p>';
 	}
 
 	/**

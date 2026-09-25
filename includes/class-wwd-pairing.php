@@ -117,7 +117,7 @@ class WWD_Pairing {
 		if ( '' === $state['hash'] ) {
 			return new WP_Error(
 				'wwd_pair_closed',
-				__( 'This site is not waiting to be paired. Open pairing from Wren AI → Settings.', 'wp-wren-dashboards' ),
+				__( 'This site is not waiting to be paired. Open pairing from DataChat → Settings.', 'datachat-ai' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -127,7 +127,7 @@ class WWD_Pairing {
 
 			return new WP_Error(
 				'wwd_pair_expired',
-				__( 'The pairing code has expired. Generate a new one.', 'wp-wren-dashboards' ),
+				__( 'The pairing code has expired. Generate a new one.', 'datachat-ai' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -137,7 +137,7 @@ class WWD_Pairing {
 
 			return new WP_Error(
 				'wwd_pair_burned',
-				__( 'Too many wrong pairing codes. Generate a new one.', 'wp-wren-dashboards' ),
+				__( 'Too many wrong pairing codes. Generate a new one.', 'datachat-ai' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -149,7 +149,7 @@ class WWD_Pairing {
 
 			return new WP_Error(
 				'wwd_pair_rejected',
-				__( 'Wrong pairing code.', 'wp-wren-dashboards' ),
+				__( 'Wrong pairing code.', 'datachat-ai' ),
 				array( 'status' => 403 )
 			);
 		}

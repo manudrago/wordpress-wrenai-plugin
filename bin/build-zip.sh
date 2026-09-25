@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Build an installable zip. WordPress expects the plugin inside a folder named
-# after its slug, so the archive wraps the repository in wp-wren-dashboards/.
+# after its slug, so the archive wraps the repository in datachat-ai/.
 #
-#   ./bin/build-zip.sh  ->  dist/wp-wren-dashboards.zip
+#   ./bin/build-zip.sh  ->  dist/datachat-ai.zip
 #
 # WordPress treats an upload as an update to an existing plugin only when the
 # folder inside the archive matches the one already in wp-content/plugins. A
@@ -14,7 +14,7 @@
 #   ./bin/build-zip.sh wordpress-wrenai-plugin-main
 set -euo pipefail
 
-SLUG="${1:-wp-wren-dashboards}"
+SLUG="${1:-datachat-ai}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$(mktemp -d)"
 DIST="${ROOT}/dist"

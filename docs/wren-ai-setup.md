@@ -2,7 +2,7 @@
 
 > **Serve solo se scegli il motore "Wren AI service".** Dalla 1.2.0 il plugin di default
 > chiama direttamente un modello linguistico e non ha bisogno di nessun servizio: basta una
-> API key in **Wren AI → Impostazioni**. Questa pagina riguarda l'altra strada, per chi
+> API key in **DataChat → Impostazioni**. Questa pagina riguarda l'altra strada, per chi
 > un'istanza di Wren AI ce l'ha già o la vuole.
 
 Con quel motore il plugin ha bisogno di un endpoint HTTP che parli la REST API di
@@ -51,7 +51,7 @@ docker compose up -d
 curl http://localhost:5555/health     # {"status":"ok"}
 ```
 
-Nel plugin (**Wren AI → Impostazioni**):
+Nel plugin (**DataChat → Impostazioni**):
 
 - Endpoint: `http://localhost:5555`
 - API prefix: `/v1`
@@ -104,7 +104,7 @@ Dettagli, alternative di hosting e manutenzione: [`deploy/README.md`](../deploy/
 
 Con `--pair-url` e `--pair-code` l'installer manda endpoint e API key al plugin
 appena il servizio risponde, e non devi copiare niente. I due valori li genera
-**Wren AI → Impostazioni → "Collega un server automaticamente"**, che stampa
+**DataChat → Impostazioni → "Collega un server automaticamente"**, che stampa
 direttamente il comando completo.
 
 Dietro a un quick tunnel installa anche un timer (`wren-pair-refresh.timer`) che

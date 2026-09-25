@@ -1,4 +1,4 @@
-# WP Wren Dashboards
+# DataChat AI
 
 Plugin WordPress che legge il database del sito e, in una pagina qualsiasi (via shortcode),
 mostra un form dove chiunque sia autorizzato può **chiedere qualsiasi cosa sui propri dati in
@@ -77,19 +77,19 @@ modello diretto: si sceglie nelle impostazioni, il resto del plugin è identico.
 ## Installazione
 
 Questo repository **è** il plugin: la sua radice va copiata in una cartella chiamata
-`wp-wren-dashboards` dentro `wp-content/plugins/`.
+`datachat-ai` dentro `wp-content/plugins/`.
 
 ```bash
 git clone https://github.com/manudrago/wordpress-wrenai-plugin.git \
-  /path/to/wp-content/plugins/wp-wren-dashboards
-# poi attiva "WP Wren Dashboards" da wp-admin → Plugin
+  /path/to/wp-content/plugins/datachat-ai
+# poi attiva "DataChat AI" da wp-admin → Plugin
 ```
 
 Oppure genera lo zip da caricare da wp-admin (crea la cartella con il nome giusto):
 
 ```bash
 ./bin/build-zip.sh
-# → dist/wp-wren-dashboards.zip
+# → dist/datachat-ai.zip
 ```
 
 All'attivazione il plugin crea la tabella di log `{prefix}wwd_query_log` e il tipo di
@@ -99,7 +99,7 @@ contenuto `wwd_dashboard`.
 
 ### 1. Metti una chiave del modello
 
-**wp-admin → Wren AI → Impostazioni**, motore **"Un modello linguistico, chiamato da questo
+**wp-admin → DataChat → Impostazioni**, motore **"Un modello linguistico, chiamato da questo
 sito"** (è il default):
 
 | Campo | Valore |
@@ -128,7 +128,7 @@ Cloudflare e rimanda endpoint e API key al sito da solo. Dettagli in
 
 ### 2. Scegli i dati
 
-**wp-admin → Wren AI → Dati & schema**
+**wp-admin → DataChat → Dati & schema**
 
 - Seleziona le tabelle che il modello può vedere (di default: `posts`, `postmeta`, `terms`,
   `term_taxonomy`, `term_relationships`, `comments`).
@@ -156,7 +156,7 @@ Fatto: chi ha il permesso può fare domande e salvare le risposte come pannelli.
 
 ## Dove si usa
 
-Tutto sta in **wp-admin → Wren AI**:
+Tutto sta in **wp-admin → DataChat**:
 
 | Schermata | A cosa serve |
 |---|---|
@@ -232,7 +232,7 @@ database ci sono cinque livelli:
    ```
 
 In più: rate limit per utente (o per IP se anonimo), cache dei risultati, log completo di ogni
-domanda e istruzione eseguita (**Wren AI → Query log**), e i pannelli salvati contengono solo
+domanda e istruzione eseguita (**DataChat → Query log**), e i pannelli salvati contengono solo
 SQL già approvato dal guard — il browser non può iniettare SQL proprio, perché il salvataggio
 usa la sessione lato server, non il testo inviato dal client.
 

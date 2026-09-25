@@ -2,7 +2,7 @@
 #
 # One-line entry point for install-wren-ai.sh.
 #
-# The settings screen of the WP Wren Dashboards plugin prints a command that
+# The settings screen of the DataChat AI plugin prints a command that
 # fetches this file and runs it with a pairing code, so the machine installs
 # Wren AI and reports its address back to WordPress by itself. Nothing has to
 # be copied by hand in either direction.

@@ -60,11 +60,11 @@ class WWD_Ask_Session {
 		$question = trim( wp_strip_all_tags( (string) $question ) );
 
 		if ( '' === $question ) {
-			return new WP_Error( 'wwd_empty_question', __( 'Please type a question first.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_empty_question', __( 'Please type a question first.', 'datachat-ai' ) );
 		}
 
 		if ( mb_strlen( $question ) > 1000 ) {
-			return new WP_Error( 'wwd_long_question', __( 'That question is too long. Please shorten it.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_long_question', __( 'That question is too long. Please shorten it.', 'datachat-ai' ) );
 		}
 
 		$engine = WWD_Engine::make();
@@ -95,7 +95,7 @@ class WWD_Ask_Session {
 			'job'        => $busy ? '' : (string) $started['job'],
 			'chart_job'  => '',
 			'status'     => 'generating_sql',
-			'stage'      => __( 'Understanding the question…', 'wp-wren-dashboards' ),
+			'stage'      => __( 'Understanding the question…', 'datachat-ai' ),
 			'sql'        => '',
 			'reasoning'  => '',
 			'columns'    => array(),
@@ -128,7 +128,7 @@ class WWD_Ask_Session {
 			if ( ! empty( $started['done'] ) ) {
 				$state['sql']    = (string) $started['sql'];
 				$state['status'] = 'running_query';
-				$state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+				$state['stage']  = __( 'Running the query…', 'datachat-ai' );
 			}
 		}
 
@@ -148,13 +148,13 @@ class WWD_Ask_Session {
 		$id = preg_replace( '/[^a-z0-9\-]/i', '', (string) $id );
 
 		if ( '' === $id ) {
-			return new WP_Error( 'wwd_bad_session', __( 'Unknown question.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_bad_session', __( 'Unknown question.', 'datachat-ai' ) );
 		}
 
 		$state = get_transient( self::TRANSIENT_PREFIX . $id );
 
 		if ( ! is_array( $state ) ) {
-			return new WP_Error( 'wwd_session_expired', __( 'This question has expired. Please ask it again.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_session_expired', __( 'This question has expired. Please ask it again.', 'datachat-ai' ) );
 		}
 
 		$state += array(
@@ -164,7 +164,7 @@ class WWD_Ask_Session {
 		);
 
 		if ( (int) $state['user_id'] !== get_current_user_id() ) {
-			return new WP_Error( 'wwd_forbidden_session', __( 'This question belongs to somebody else.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_forbidden_session', __( 'This question belongs to somebody else.', 'datachat-ai' ) );
 		}
 
 		return new self( $state );
@@ -215,7 +215,7 @@ class WWD_Ask_Session {
 		$max_steps = (int) apply_filters( 'wwd_max_poll_steps', self::MAX_STEPS );
 
 		if ( $this->state['steps'] > $max_steps ) {
-			return $this->fail( __( 'This question took too long to answer. Please try a simpler one.', 'wp-wren-dashboards' ) );
+			return $this->fail( __( 'This question took too long to answer. Please try a simpler one.', 'datachat-ai' ) );
 		}
 
 		switch ( $this->state['status'] ) {
@@ -255,7 +255,7 @@ class WWD_Ask_Session {
 	 * @return string
 	 */
 	protected static function busy_stage() {
-		return __( 'The model is busy right now. Trying again in a moment…', 'wp-wren-dashboards' );
+		return __( 'The model is busy right now. Trying again in a moment…', 'datachat-ai' );
 	}
 
 	/**
@@ -323,14 +323,14 @@ class WWD_Ask_Session {
 
 		if ( empty( $result['done'] ) ) {
 			$this->state['job']   = (string) $result['job'];
-			$this->state['stage'] = '' !== $result['stage'] ? $result['stage'] : __( 'Understanding the question…', 'wp-wren-dashboards' );
+			$this->state['stage'] = '' !== $result['stage'] ? $result['stage'] : __( 'Understanding the question…', 'datachat-ai' );
 
 			return;
 		}
 
 		$this->state['sql']    = $result['sql'];
 		$this->state['status'] = 'running_query';
-		$this->state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+		$this->state['stage']  = __( 'Running the query…', 'datachat-ai' );
 	}
 
 	/**
@@ -370,7 +370,7 @@ class WWD_Ask_Session {
 		}
 
 		$this->state['chart_job'] = (string) $result['job'];
-		$this->state['stage']     = __( 'Designing the chart…', 'wp-wren-dashboards' );
+		$this->state['stage']     = __( 'Designing the chart…', 'datachat-ai' );
 	}
 
 	/**
@@ -401,7 +401,7 @@ class WWD_Ask_Session {
 
 		$this->state['sql']    = $result['sql'];
 		$this->state['status'] = 'running_query';
-		$this->state['stage']  = __( 'Running the query…', 'wp-wren-dashboards' );
+		$this->state['stage']  = __( 'Running the query…', 'datachat-ai' );
 	}
 
 	/**
@@ -450,7 +450,7 @@ class WWD_Ask_Session {
 
 		if ( empty( $result['rows'] ) ) {
 			$this->state['status'] = 'done';
-			$this->state['stage']  = __( 'No rows matched that question.', 'wp-wren-dashboards' );
+			$this->state['stage']  = __( 'No rows matched that question.', 'datachat-ai' );
 
 			return;
 		}
@@ -487,7 +487,7 @@ class WWD_Ask_Session {
 
 		$this->state['chart_job'] = (string) $chart['job'];
 		$this->state['status']    = 'generating_chart';
-		$this->state['stage']     = __( 'Designing the chart…', 'wp-wren-dashboards' );
+		$this->state['stage']     = __( 'Designing the chart…', 'datachat-ai' );
 	}
 
 	/**
@@ -524,7 +524,7 @@ class WWD_Ask_Session {
 		$this->state['chart_type'] = (string) $type;
 		$this->state['chart_note'] = (string) $note;
 		$this->state['status']     = 'done';
-		$this->state['stage']      = __( 'Done.', 'wp-wren-dashboards' );
+		$this->state['stage']      = __( 'Done.', 'datachat-ai' );
 	}
 
 	/**
@@ -535,7 +535,7 @@ class WWD_Ask_Session {
 	 */
 	protected function fail( $message ) {
 		$this->state['status'] = 'failed';
-		$this->state['stage']  = __( 'Failed.', 'wp-wren-dashboards' );
+		$this->state['stage']  = __( 'Failed.', 'datachat-ai' );
 		$this->state['error']  = $message;
 
 		$this->save();
@@ -553,7 +553,7 @@ class WWD_Ask_Session {
 			WWD_Engine::make()->stop_sql( $this->state['job'] );
 		}
 
-		return $this->fail( __( 'Stopped.', 'wp-wren-dashboards' ) );
+		return $this->fail( __( 'Stopped.', 'datachat-ai' ) );
 	}
 
 	/**

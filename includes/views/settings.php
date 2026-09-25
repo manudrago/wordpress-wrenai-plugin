@@ -13,31 +13,31 @@ defined( 'ABSPATH' ) || exit;
 $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_posts', 'edit_pages', 'manage_options' );
 ?>
 <div class="wrap wwd-wrap">
-	<h1><?php esc_html_e( 'Wren AI Dashboards', 'wp-wren-dashboards' ); ?></h1>
+	<h1><?php esc_html_e( 'DataChat AI', 'datachat-ai' ); ?></h1>
 
 	<?php if ( 'cache' === $updated ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Cached results cleared.', 'wp-wren-dashboards' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Cached results cleared.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( $updated ) : ?>
-		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'wp-wren-dashboards' ); ?></p></div>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'datachat-ai' ); ?></p></div>
 	<?php endif; ?>
 
 	<div class="wwd-status-card">
 		<div>
-			<strong><?php esc_html_e( 'Connection', 'wp-wren-dashboards' ); ?></strong>
-			<p class="wwd-status" id="wwd-health"><?php esc_html_e( 'Not checked yet.', 'wp-wren-dashboards' ); ?></p>
+			<strong><?php esc_html_e( 'Connection', 'datachat-ai' ); ?></strong>
+			<p class="wwd-status" id="wwd-health"><?php esc_html_e( 'Not checked yet.', 'datachat-ai' ); ?></p>
 		</div>
 		<div>
-			<strong><?php esc_html_e( 'Engine', 'wp-wren-dashboards' ); ?></strong>
+			<strong><?php esc_html_e( 'Engine', 'datachat-ai' ); ?></strong>
 			<p class="wwd-status">
 				<?php if ( 'wren' === $settings['engine'] ) : ?>
-					<?php esc_html_e( 'Wren AI service', 'wp-wren-dashboards' ); ?>
+					<?php esc_html_e( 'Wren AI service', 'datachat-ai' ); ?>
 				<?php else : ?>
 					<?php
 					$wwd_client = new WWD_Model_Client();
 
 					printf(
 						/* translators: 1: provider name, 2: model name. */
-						esc_html__( '%1$s, %2$s', 'wp-wren-dashboards' ),
+						esc_html__( '%1$s, %2$s', 'datachat-ai' ),
 						esc_html( WWD_Model_Client::provider( $settings['model_provider'] )['label'] ),
 						esc_html( $wwd_client->model() )
 					);
@@ -46,82 +46,82 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 			</p>
 		</div>
 		<div <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
-			<strong><?php esc_html_e( 'Semantic model', 'wp-wren-dashboards' ); ?></strong>
+			<strong><?php esc_html_e( 'Semantic model', 'datachat-ai' ); ?></strong>
 			<p class="wwd-status">
 				<?php if ( $settings['mdl_hash'] ) : ?>
 					<?php
 					printf(
 						/* translators: 1: model hash, 2: human readable time difference. */
-						esc_html__( 'Deployed (%1$s), %2$s ago', 'wp-wren-dashboards' ),
+						esc_html__( 'Deployed (%1$s), %2$s ago', 'datachat-ai' ),
 						esc_html( substr( $settings['mdl_hash'], 0, 8 ) ),
 						esc_html( human_time_diff( (int) $settings['mdl_deployed_at'], time() ) )
 					);
 					?>
 				<?php else : ?>
-					<?php esc_html_e( 'Not deployed yet.', 'wp-wren-dashboards' ); ?>
+					<?php esc_html_e( 'Not deployed yet.', 'datachat-ai' ); ?>
 				<?php endif; ?>
 			</p>
 		</div>
 		<div>
-			<strong><?php esc_html_e( 'Database access', 'wp-wren-dashboards' ); ?></strong>
+			<strong><?php esc_html_e( 'Database access', 'datachat-ai' ); ?></strong>
 			<p class="wwd-status">
 				<?php if ( WWD_Query_Runner::has_dedicated_connection() ) : ?>
-					<?php esc_html_e( 'Dedicated connection (WWD_DB_USER)', 'wp-wren-dashboards' ); ?>
+					<?php esc_html_e( 'Dedicated connection (WWD_DB_USER)', 'datachat-ai' ); ?>
 				<?php else : ?>
-					<?php esc_html_e( 'WordPress connection — a read-only MySQL user is recommended', 'wp-wren-dashboards' ); ?>
+					<?php esc_html_e( 'WordPress connection — a read-only MySQL user is recommended', 'datachat-ai' ); ?>
 				<?php endif; ?>
 			</p>
 		</div>
 		<div class="wwd-status-card__actions">
-			<button type="button" class="button" id="wwd-check-health"><?php esc_html_e( 'Test connection', 'wp-wren-dashboards' ); ?></button>
-			<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=wwd-schema' ) ); ?>"><?php esc_html_e( 'Data & schema', 'wp-wren-dashboards' ); ?></a>
+			<button type="button" class="button" id="wwd-check-health"><?php esc_html_e( 'Test connection', 'datachat-ai' ); ?></button>
+			<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=wwd-schema' ) ); ?>"><?php esc_html_e( 'Data & schema', 'datachat-ai' ); ?></a>
 		</div>
 	</div>
 
 	<div class="wwd-pair-card wwd-engine-pane" data-wwd-pane="wren" <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
-		<h2><?php esc_html_e( 'Connect a server automatically', 'wp-wren-dashboards' ); ?></h2>
+		<h2><?php esc_html_e( 'Connect a server automatically', 'datachat-ai' ); ?></h2>
 		<p class="description">
-			<?php esc_html_e( 'Generate a command, paste it into a machine with Ubuntu or Debian, and it installs Wren AI and fills in the endpoint and API key below by itself. Nothing to copy back by hand.', 'wp-wren-dashboards' ); ?>
+			<?php esc_html_e( 'Generate a command, paste it into a machine with Ubuntu or Debian, and it installs Wren AI and fills in the endpoint and API key below by itself. Nothing to copy back by hand.', 'datachat-ai' ); ?>
 		</p>
 
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><label for="wwd-pair-key"><?php esc_html_e( 'Google AI Studio key', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-pair-key"><?php esc_html_e( 'Google AI Studio key', 'datachat-ai' ); ?></label></th>
 				<td>
-					<input type="text" id="wwd-pair-key" class="regular-text code" placeholder="AIza… (<?php esc_attr_e( 'optional', 'wp-wren-dashboards' ); ?>)" autocomplete="off">
+					<input type="text" id="wwd-pair-key" class="regular-text code" placeholder="AIza… (<?php esc_attr_e( 'optional', 'datachat-ai' ); ?>)" autocomplete="off">
 					<p class="description">
 						<?php
 						printf(
 							/* translators: %s: link to Google AI Studio. */
-							esc_html__( 'Free at %s, no credit card. With a key the server needs 2 GB of RAM and answers in seconds; without one it installs a local model and needs 8 GB.', 'wp-wren-dashboards' ),
+							esc_html__( 'Free at %s, no credit card. With a key the server needs 2 GB of RAM and answers in seconds; without one it installs a local model and needs 8 GB.', 'datachat-ai' ),
 							'<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer noopener">aistudio.google.com/apikey</a>'
 						);
 						?>
 					</p>
-					<p class="description"><?php esc_html_e( 'The key is only written into the command shown below. It is never stored on this site.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'The key is only written into the command shown below. It is never stored on this site.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Address updates', 'wp-wren-dashboards' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Address updates', 'datachat-ai' ); ?></th>
 				<td>
 					<label>
 						<input type="checkbox" id="wwd-pair-refresh" checked>
-						<?php esc_html_e( 'Let that server correct the endpoint when it changes', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Let that server correct the endpoint when it changes', 'datachat-ai' ); ?>
 					</label>
-					<p class="description"><?php esc_html_e( 'A Cloudflare quick tunnel gets a new address every time it restarts. With this on, the server reports the new one and the setup keeps working; the code stays valid while the server keeps reporting in, and you can close it here at any time.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'A Cloudflare quick tunnel gets a new address every time it restarts. With this on, the server reports the new one and the setup keeps working; the code stays valid while the server keeps reporting in, and you can close it here at any time.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 		</table>
 
 		<p>
-			<button type="button" class="button button-primary" id="wwd-pair-open"><?php esc_html_e( 'Generate the command', 'wp-wren-dashboards' ); ?></button>
-			<button type="button" class="button" id="wwd-pair-close" hidden><?php esc_html_e( 'Close pairing', 'wp-wren-dashboards' ); ?></button>
+			<button type="button" class="button button-primary" id="wwd-pair-open"><?php esc_html_e( 'Generate the command', 'datachat-ai' ); ?></button>
+			<button type="button" class="button" id="wwd-pair-close" hidden><?php esc_html_e( 'Close pairing', 'datachat-ai' ); ?></button>
 			<span class="wwd-status" id="wwd-pair-status"></span>
 		</p>
 
 		<div id="wwd-pair-output" hidden>
 			<textarea class="wwd-copy code" id="wwd-pair-command" rows="5" readonly></textarea>
-			<p class="description"><?php esc_html_e( 'Run it as root on the machine that will host Wren AI. It takes a few minutes; this page notices on its own when the server reports in.', 'wp-wren-dashboards' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Run it as root on the machine that will host Wren AI. It takes a few minutes; this page notices on its own when the server reports in.', 'datachat-ai' ); ?></p>
 		</div>
 	</div>
 
@@ -133,21 +133,21 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		<input type="hidden" name="wwd[_fields][]" value="log_queries">
 		<?php wp_nonce_field( 'wwd_save_settings' ); ?>
 
-		<h2 class="title"><?php esc_html_e( 'Where the thinking happens', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Where the thinking happens', 'datachat-ai' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Engine', 'wp-wren-dashboards' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Engine', 'datachat-ai' ); ?></th>
 				<td>
 					<fieldset>
 						<label class="wwd-engine-pick">
 							<input type="radio" name="wwd[engine]" value="direct" data-wwd-engine <?php checked( $settings['engine'], 'direct' ); ?>>
-							<strong><?php esc_html_e( 'A language model, called from this site', 'wp-wren-dashboards' ); ?></strong>
-							<span class="description"><?php esc_html_e( 'Nothing to install anywhere. The schema of a WordPress site fits in a prompt, so a question costs one call for the SQL and one for the chart. Add an API key below and you are done.', 'wp-wren-dashboards' ); ?></span>
+							<strong><?php esc_html_e( 'A language model, called from this site', 'datachat-ai' ); ?></strong>
+							<span class="description"><?php esc_html_e( 'Nothing to install anywhere. The schema of a WordPress site fits in a prompt, so a question costs one call for the SQL and one for the chart. Add an API key below and you are done.', 'datachat-ai' ); ?></span>
 						</label>
 						<label class="wwd-engine-pick">
 							<input type="radio" name="wwd[engine]" value="wren" data-wwd-engine <?php checked( $settings['engine'], 'wren' ); ?>>
-							<strong><?php esc_html_e( 'A Wren AI service', 'wp-wren-dashboards' ); ?></strong>
-							<span class="description"><?php esc_html_e( 'A semantic layer with its own vector store, worth running when the schema is large or already modelled there. Needs a server and a deployed schema.', 'wp-wren-dashboards' ); ?></span>
+							<strong><?php esc_html_e( 'A Wren AI service', 'datachat-ai' ); ?></strong>
+							<span class="description"><?php esc_html_e( 'A semantic layer with its own vector store, worth running when the schema is large or already modelled there. Needs a server and a deployed schema.', 'datachat-ai' ); ?></span>
 						</label>
 					</fieldset>
 				</td>
@@ -155,10 +155,10 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		</table>
 
 		<div class="wwd-engine-pane" data-wwd-pane="direct" <?php echo 'direct' === $settings['engine'] ? '' : 'hidden'; ?>>
-			<h2 class="title"><?php esc_html_e( 'Model', 'wp-wren-dashboards' ); ?></h2>
+			<h2 class="title"><?php esc_html_e( 'Model', 'datachat-ai' ); ?></h2>
 			<table class="form-table" role="presentation">
 				<tr>
-					<th scope="row"><label for="wwd-provider"><?php esc_html_e( 'Provider', 'wp-wren-dashboards' ); ?></label></th>
+					<th scope="row"><label for="wwd-provider"><?php esc_html_e( 'Provider', 'datachat-ai' ); ?></label></th>
 					<td>
 						<select name="wwd[model_provider]" id="wwd-provider">
 							<?php foreach ( WWD_Model_Client::providers() as $wwd_id => $wwd_provider ) : ?>
@@ -173,7 +173,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 								<?php
 								printf(
 									/* translators: %s: link where the provider hands out API keys. */
-									esc_html__( 'Get a key at %s.', 'wp-wren-dashboards' ),
+									esc_html__( 'Get a key at %s.', 'datachat-ai' ),
 									'<a href="' . esc_url( $wwd_current['keys'] ) . '" target="_blank" rel="noreferrer noopener">' . esc_html( wp_parse_url( $wwd_current['keys'], PHP_URL_HOST ) ) . '</a>'
 								);
 								?>
@@ -182,74 +182,74 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="wwd-model-key"><?php esc_html_e( 'API key', 'wp-wren-dashboards' ); ?></label></th>
+					<th scope="row"><label for="wwd-model-key"><?php esc_html_e( 'API key', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_api_key]" id="wwd-model-key" type="password" class="regular-text code" autocomplete="off"
 							value="<?php echo esc_attr( $settings['model_api_key'] ); ?>">
-						<p class="description"><?php esc_html_e( 'Stored in this site\'s options table and sent only to the provider above.', 'wp-wren-dashboards' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Stored in this site\'s options table and sent only to the provider above.', 'datachat-ai' ); ?></p>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="wwd-model-name"><?php esc_html_e( 'Model', 'wp-wren-dashboards' ); ?></label></th>
+					<th scope="row"><label for="wwd-model-name"><?php esc_html_e( 'Model', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_name]" id="wwd-model-name" type="text" class="regular-text code"
 							value="<?php echo esc_attr( $settings['model_name'] ); ?>"
 							placeholder="<?php echo esc_attr( $wwd_current['model'] ); ?>"
 							list="wwd-model-list" autocomplete="off">
 						<datalist id="wwd-model-list"></datalist>
-						<button type="button" class="button" id="wwd-list-models"><?php esc_html_e( 'List what this key can use', 'wp-wren-dashboards' ); ?></button>
-						<p class="description"><?php esc_html_e( 'Empty uses the default for this provider. Providers retire models without warning, so if a model comes back as unknown, ask the provider what it has now and pick one.', 'wp-wren-dashboards' ); ?></p>
+						<button type="button" class="button" id="wwd-list-models"><?php esc_html_e( 'List what this key can use', 'datachat-ai' ); ?></button>
+						<p class="description"><?php esc_html_e( 'Empty uses the default for this provider. Providers retire models without warning, so if a model comes back as unknown, ask the provider what it has now and pick one.', 'datachat-ai' ); ?></p>
 						<p class="wwd-status" id="wwd-model-status"></p>
 						<div class="wwd-model-choices" id="wwd-model-choices" hidden></div>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="wwd-model-base"><?php esc_html_e( 'API base URL', 'wp-wren-dashboards' ); ?></label></th>
+					<th scope="row"><label for="wwd-model-base"><?php esc_html_e( 'API base URL', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_base]" id="wwd-model-base" type="url" class="regular-text code"
 							value="<?php echo esc_attr( $settings['model_base'] ); ?>"
 							placeholder="<?php echo esc_attr( $wwd_current['base'] ? $wwd_current['base'] : 'http://localhost:11434/v1' ); ?>">
-						<p class="description"><?php esc_html_e( 'Only for an OpenAI-compatible endpoint of your own. Empty uses the provider default.', 'wp-wren-dashboards' ); ?></p>
+						<p class="description"><?php esc_html_e( 'Only for an OpenAI-compatible endpoint of your own. Empty uses the provider default.', 'datachat-ai' ); ?></p>
 					</td>
 				</tr>
 			</table>
 		</div>
 
 		<div class="wwd-engine-pane" data-wwd-pane="wren" <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
-		<h2 class="title"><?php esc_html_e( 'Wren AI service', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Wren AI service', 'datachat-ai' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><label for="wwd-endpoint"><?php esc_html_e( 'Endpoint', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-endpoint"><?php esc_html_e( 'Endpoint', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[endpoint]" id="wwd-endpoint" type="url" class="regular-text code"
 						value="<?php echo esc_attr( $settings['endpoint'] ); ?>" placeholder="http://localhost:5555">
 					<p class="description">
-						<?php esc_html_e( 'Base URL of the Wren AI service (wren-ai-service). Self-hosted default: http://localhost:5555.', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Base URL of the Wren AI service (wren-ai-service). Self-hosted default: http://localhost:5555.', 'datachat-ai' ); ?>
 					</p>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-prefix"><?php esc_html_e( 'API prefix', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-prefix"><?php esc_html_e( 'API prefix', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[api_prefix]" id="wwd-prefix" type="text" class="small-text code"
 						value="<?php echo esc_attr( $settings['api_prefix'] ); ?>">
-					<p class="description"><?php esc_html_e( 'Usually /v1. Use /api/v1 for Wren AI Cloud.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Usually /v1. Use /api/v1 for Wren AI Cloud.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-key"><?php esc_html_e( 'API key', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-key"><?php esc_html_e( 'API key', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[api_key]" id="wwd-key" type="password" class="regular-text code" autocomplete="off"
 						value="<?php echo esc_attr( $settings['api_key'] ); ?>">
-					<p class="description"><?php esc_html_e( 'Sent as a Bearer token. Leave empty for a local service without authentication.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Sent as a Bearer token. Leave empty for a local service without authentication.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-project"><?php esc_html_e( 'Project id', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-project"><?php esc_html_e( 'Project id', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[project_id]" id="wwd-project" type="text" class="regular-text code"
 						value="<?php echo esc_attr( $settings['project_id'] ); ?>">
-					<p class="description"><?php esc_html_e( 'Optional. Keeps this site\'s model separate when several projects share one Wren AI instance.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Optional. Keeps this site\'s model separate when several projects share one Wren AI instance.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 		</table>
@@ -257,27 +257,27 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><label for="wwd-timeout"><?php esc_html_e( 'Request timeout', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-timeout"><?php esc_html_e( 'Request timeout', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[request_timeout]" id="wwd-timeout" type="number" min="5" max="120" class="small-text"
 						value="<?php echo esc_attr( $settings['request_timeout'] ); ?>">
-					<span><?php esc_html_e( 'seconds', 'wp-wren-dashboards' ); ?></span>
+					<span><?php esc_html_e( 'seconds', 'datachat-ai' ); ?></span>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-language"><?php esc_html_e( 'Answer language', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-language"><?php esc_html_e( 'Answer language', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[language]" id="wwd-language" type="text" class="regular-text"
 						value="<?php echo esc_attr( $settings['language'] ); ?>" placeholder="<?php echo esc_attr( WWD_Settings::language() ); ?>">
-					<p class="description"><?php esc_html_e( 'Language of chart titles and explanations. Empty follows the site locale.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Language of chart titles and explanations. Empty follows the site locale.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 		</table>
 
-		<h2 class="title"><?php esc_html_e( 'Who can ask', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Who can ask', 'datachat-ai' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><label for="wwd-ask-cap"><?php esc_html_e( 'Capability to ask questions', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-ask-cap"><?php esc_html_e( 'Capability to ask questions', 'datachat-ai' ); ?></label></th>
 				<td>
 					<select name="wwd[ask_capability]" id="wwd-ask-cap">
 						<?php foreach ( $wwd_capabilities as $wwd_cap ) : ?>
@@ -287,7 +287,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-save-cap"><?php esc_html_e( 'Capability to save panels', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-save-cap"><?php esc_html_e( 'Capability to save panels', 'datachat-ai' ); ?></label></th>
 				<td>
 					<select name="wwd[save_capability]" id="wwd-save-cap">
 						<?php foreach ( $wwd_capabilities as $wwd_cap ) : ?>
@@ -297,59 +297,59 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Public access', 'wp-wren-dashboards' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Public access', 'datachat-ai' ); ?></th>
 				<td>
 					<label>
 						<input type="checkbox" name="wwd[allow_public]" value="1" <?php checked( $settings['allow_public'] ); ?>>
-						<?php esc_html_e( 'Let logged-out visitors ask questions', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Let logged-out visitors ask questions', 'datachat-ai' ); ?>
 					</label>
 					<p class="description wwd-warning">
-						<?php esc_html_e( 'Only enable this if every shared table is safe to expose publicly: visitors will be able to query them in aggregate.', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Only enable this if every shared table is safe to expose publicly: visitors will be able to query them in aggregate.', 'datachat-ai' ); ?>
 					</p>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Show SQL', 'wp-wren-dashboards' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Show SQL', 'datachat-ai' ); ?></th>
 				<td>
 					<label>
 						<input type="checkbox" name="wwd[show_sql]" value="1" <?php checked( $settings['show_sql'] ); ?>>
-						<?php esc_html_e( 'Show the generated SQL under each answer', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Show the generated SQL under each answer', 'datachat-ai' ); ?>
 					</label>
 				</td>
 			</tr>
 		</table>
 
-		<h2 class="title"><?php esc_html_e( 'Limits', 'wp-wren-dashboards' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Limits', 'datachat-ai' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><label for="wwd-max-rows"><?php esc_html_e( 'Maximum rows per query', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-max-rows"><?php esc_html_e( 'Maximum rows per query', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[max_rows]" id="wwd-max-rows" type="number" min="10" max="20000" class="small-text"
 						value="<?php echo esc_attr( $settings['max_rows'] ); ?>">
-					<p class="description"><?php esc_html_e( 'A LIMIT is appended to every generated query.', 'wp-wren-dashboards' ); ?></p>
+					<p class="description"><?php esc_html_e( 'A LIMIT is appended to every generated query.', 'datachat-ai' ); ?></p>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-cache"><?php esc_html_e( 'Cache results for', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-cache"><?php esc_html_e( 'Cache results for', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[cache_ttl]" id="wwd-cache" type="number" min="0" max="86400" class="small-text"
 						value="<?php echo esc_attr( $settings['cache_ttl'] ); ?>">
-					<span><?php esc_html_e( 'seconds (0 disables caching)', 'wp-wren-dashboards' ); ?></span>
+					<span><?php esc_html_e( 'seconds (0 disables caching)', 'datachat-ai' ); ?></span>
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wwd-rate"><?php esc_html_e( 'Questions per minute per user', 'wp-wren-dashboards' ); ?></label></th>
+				<th scope="row"><label for="wwd-rate"><?php esc_html_e( 'Questions per minute per user', 'datachat-ai' ); ?></label></th>
 				<td>
 					<input name="wwd[rate_limit]" id="wwd-rate" type="number" min="1" max="500" class="small-text"
 						value="<?php echo esc_attr( $settings['rate_limit'] ); ?>">
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Query log', 'wp-wren-dashboards' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Query log', 'datachat-ai' ); ?></th>
 				<td>
 					<label>
 						<input type="checkbox" name="wwd[log_queries]" value="1" <?php checked( $settings['log_queries'] ); ?>>
-						<?php esc_html_e( 'Record every question and statement', 'wp-wren-dashboards' ); ?>
+						<?php esc_html_e( 'Record every question and statement', 'datachat-ai' ); ?>
 					</label>
 				</td>
 			</tr>
@@ -358,17 +358,17 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		<?php submit_button(); ?>
 	</form>
 
-	<h2 class="title"><?php esc_html_e( 'Shortcodes', 'wp-wren-dashboards' ); ?></h2>
-	<p><?php esc_html_e( 'Put the ask form on any page:', 'wp-wren-dashboards' ); ?></p>
+	<h2 class="title"><?php esc_html_e( 'Shortcodes', 'datachat-ai' ); ?></h2>
+	<p><?php esc_html_e( 'Put the ask form on any page:', 'datachat-ai' ); ?></p>
 	<p><code>[wren_ai_dashboard]</code></p>
-	<p><?php esc_html_e( 'With a target dashboard, a title and your own example questions:', 'wp-wren-dashboards' ); ?></p>
+	<p><?php esc_html_e( 'With a target dashboard, a title and your own example questions:', 'datachat-ai' ); ?></p>
 	<p><code>[wren_ai_dashboard dashboard="12" title="Ask the data" examples="Sales this month|Top authors"]</code></p>
-	<p><?php esc_html_e( 'Render a saved dashboard:', 'wp-wren-dashboards' ); ?></p>
+	<p><?php esc_html_e( 'Render a saved dashboard:', 'datachat-ai' ); ?></p>
 	<p><code>[wren_dashboard id="12" refresh="120"]</code></p>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wwd-inline-form">
 		<input type="hidden" name="action" value="wwd_flush_cache">
 		<?php wp_nonce_field( 'wwd_flush_cache' ); ?>
-		<button type="submit" class="button"><?php esc_html_e( 'Clear cached results', 'wp-wren-dashboards' ); ?></button>
+		<button type="submit" class="button"><?php esc_html_e( 'Clear cached results', 'datachat-ai' ); ?></button>
 	</form>
 </div>

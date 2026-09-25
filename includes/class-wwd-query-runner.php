@@ -104,7 +104,7 @@ class WWD_Query_Runner {
 		$db = self::db();
 
 		if ( ! empty( $db->error ) ) {
-			return new WP_Error( 'wwd_db_connection', __( 'Could not open the analytics database connection.', 'wp-wren-dashboards' ) );
+			return new WP_Error( 'wwd_db_connection', __( 'Could not open the analytics database connection.', 'datachat-ai' ) );
 		}
 
 		$timeout = (int) apply_filters( 'wwd_query_timeout_ms', 15000 );
@@ -128,7 +128,7 @@ class WWD_Query_Runner {
 				'wwd_query_failed',
 				sprintf(
 					/* translators: %s: database error message. */
-					__( 'The database rejected the query: %s', 'wp-wren-dashboards' ),
+					__( 'The database rejected the query: %s', 'datachat-ai' ),
 					$db->last_error
 				),
 				array( 'sql' => $safe_sql )

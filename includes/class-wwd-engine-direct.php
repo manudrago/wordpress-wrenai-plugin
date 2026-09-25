@@ -30,7 +30,7 @@ class WWD_Engine_Direct extends WWD_Engine {
 	 * @return string
 	 */
 	public function label() {
-		return __( 'Model only (no server)', 'wp-wren-dashboards' );
+		return __( 'Model only (no server)', 'datachat-ai' );
 	}
 
 	/**
@@ -53,7 +53,7 @@ class WWD_Engine_Direct extends WWD_Engine {
 		if ( ! $this->is_configured() ) {
 			return new WP_Error(
 				'wwd_model_unconfigured',
-				__( 'No model is configured yet. An administrator has to add an API key under Wren AI → Settings.', 'wp-wren-dashboards' )
+				__( 'No model is configured yet. An administrator has to add an API key under DataChat → Settings.', 'datachat-ai' )
 			);
 		}
 
@@ -62,7 +62,7 @@ class WWD_Engine_Direct extends WWD_Engine {
 		if ( empty( $tables ) ) {
 			return new WP_Error(
 				'wwd_no_tables',
-				__( 'No tables have been shared yet. An administrator has to pick them under Wren AI → Data & schema.', 'wp-wren-dashboards' )
+				__( 'No tables have been shared yet. An administrator has to pick them under DataChat → Data & schema.', 'datachat-ai' )
 			);
 		}
 
@@ -106,7 +106,7 @@ class WWD_Engine_Direct extends WWD_Engine {
 				'wwd_no_sql',
 				'' !== $refusal
 					? $refusal
-					: __( 'The model could not turn that into a query. Try naming the data you want more directly.', 'wp-wren-dashboards' )
+					: __( 'The model could not turn that into a query. Try naming the data you want more directly.', 'datachat-ai' )
 			);
 		}
 
@@ -149,7 +149,7 @@ class WWD_Engine_Direct extends WWD_Engine {
 			// one, and saying why helps whoever asked.
 			$result['note'] = isset( $answer['reason'] )
 				? (string) $answer['reason']
-				: __( 'The data did not suggest a chart, so here it is as a table.', 'wp-wren-dashboards' );
+				: __( 'The data did not suggest a chart, so here it is as a table.', 'datachat-ai' );
 
 			return $result;
 		}
