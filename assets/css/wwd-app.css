@@ -17,6 +17,9 @@
 	--wwd-surface: #f6f7f7;
 	--wwd-bar-other: #8c8f94;
 
+	/* Series colours. Define --wwd-series-1 … --wwd-series-10 in your theme,
+	   or right here, to draw the charts in your own brand. */
+
 	color: var(--wwd-fg);
 	font-size: 15px;
 	line-height: 1.5;

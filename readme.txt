@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.4.1
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,15 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.5.0 =
+* A time axis now runs forwards whatever order the query returned, so "ORDER BY month DESC"
+  no longer draws the year backwards.
+* Line charts print their values when there are ten points or fewer.
+* KPI captions read as words rather than column names: orders_this_year becomes
+  "Orders this year".
+* Charts follow the theme: define --wwd-series-1 … --wwd-series-10 to draw them in your own
+  brand colours.
 
 = 1.4.1 =
 * Newer OpenAI models renamed max_tokens to max_completion_tokens and refuse a temperature

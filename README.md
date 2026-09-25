@@ -271,6 +271,17 @@ dimentica lo schema deployato, perché vive sul server che stai lasciando.
 
 ## Hook per sviluppatori
 
+I colori dei grafici seguono il tema: basta definire le variabili CSS, per
+esempio nel Customizer o in `style.css`, e valgono per tutti i grafici.
+
+```css
+.wwd-app, .wwd-board {
+	--wwd-series-1: #f5c518;   /* prima serie, e tutte le barre semplici */
+	--wwd-series-2: #1d1d1d;
+	--wwd-accent:   #f5c518;   /* bottoni e link del widget */
+}
+```
+
 ```php
 // Aggiungi tabelle/relazioni custom al modello semantico.
 add_filter( 'wwd_mdl', function ( $mdl ) { /* … */ return $mdl; } );

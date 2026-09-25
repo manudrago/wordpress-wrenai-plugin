@@ -104,8 +104,11 @@ function findByClass( node, className, found ) {
 	return found;
 }
 
+global.themeColors = {};
+
 global.document = {
 	readyState: 'complete',
+	documentElement: null,
 	createElement: function ( tag ) {
 		return new Node( tag );
 	},
@@ -125,7 +128,16 @@ global.document = {
 	}
 };
 
-global.window = { WWD_CONFIG: { locale: 'it-IT' } };
+global.window = {
+	WWD_CONFIG: { locale: 'it-IT' },
+	getComputedStyle: function () {
+		return {
+			getPropertyValue: function ( name ) {
+				return global.themeColors[ name ] || '';
+			}
+		};
+	}
+};
 
 require( '../assets/js/wwd-chart.js' );
 
@@ -333,6 +345,48 @@ var months = chart.render(
 );
 
 check( 'never reorders a chart that runs over time', months && months.className.indexOf( 'wwd-chart--horizontal' ) === -1 );
+
+// 8c. Defects a real dashboard showed up.
+var reversed = chart.render(
+	{ mark: 'line', encoding: { x: { field: 'month', type: 'temporal' }, y: { field: 'sales', type: 'quantitative' } } },
+	[ 'month', 'sales' ],
+	// Exactly what "ORDER BY month DESC" hands back.
+	[ [ '2026-03', 5200 ], [ '2026-02', 4800 ], [ '2026-01', 3600 ], [ '2025-12', 1500 ] ]
+);
+
+check(
+	'a time axis runs forwards even when the query sorted it backwards',
+	reversed && findAll( reversed, 'text' ).map( function ( node ) {
+		return node.textContent;
+	} ).indexOf( '2025-12' ) < findAll( reversed, 'text' ).map( function ( node ) {
+		return node.textContent;
+	} ).indexOf( '2026-03' )
+);
+
+check( 'a line chart prints its values when there is room', reversed && findByClass( reversed, 'wwd-value' ).length === 4 );
+
+// A theme with its own brand replaces the series colours.
+global.themeColors[ '--wwd-series-1' ] = '#f5c518';
+
+var branded = chart.render(
+	{ mark: 'bar', encoding: { x: { field: 'status', type: 'nominal' }, y: { field: 'total', type: 'quantitative' } } },
+	[ 'status', 'total' ],
+	[ [ 'publish', 3 ], [ 'draft', 1 ] ]
+);
+
+check(
+	'a theme can repaint the series',
+	branded && findAll( branded, 'rect' )[ 0 ].attributes.fill === '#f5c518',
+	branded ? findAll( branded, 'rect' )[ 0 ].attributes.fill : 'null'
+);
+
+var namedKpi = chart.render( null, [ 'orders_this_year' ], [ [ 48 ] ] );
+
+check(
+	'a column name is not shown to the reader as-is',
+	namedKpi && findByClass( namedKpi, 'wwd-kpi__label' )[ 0 ].textContent === 'Orders this year',
+	namedKpi ? findByClass( namedKpi, 'wwd-kpi__label' )[ 0 ].textContent : ''
+);
 
 // 9. The table view.
 var table = chart.table( [ 'a', 'b' ], [ [ 1, 'x' ], [ 2, 'y' ] ] );
