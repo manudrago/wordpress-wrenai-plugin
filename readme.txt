@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.6.1
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,11 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.7.0 =
+* A site without a licence keeps two saved panels. Panels saved before the limit existed are
+  never touched: only new ones are refused, and removing one makes room again. Define WWD_PRO
+  or filter wwd_is_licensed to lift it.
 
 = 1.6.1 =
 * Questions about time now produce one sortable period column instead of a year column and a

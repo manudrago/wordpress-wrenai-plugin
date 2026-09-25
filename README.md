@@ -294,6 +294,10 @@ add_filter( 'wwd_example_questions', function () {
 	return array( 'Fatturato per mese', 'Prodotti senza vendite' );
 } );
 
+// Sblocca i limiti della versione gratuita (2 pannelli salvati).
+add_filter( 'wwd_is_licensed', '__return_true' );   // oppure define( 'WWD_PRO', true );
+add_filter( 'wwd_panel_limit', fn() => 10 );        // o un numero tuo
+
 // Tempi e limiti.
 add_filter( 'wwd_query_timeout_ms', fn() => 8000 );
 add_filter( 'wwd_chart_sample_rows', fn() => 50 );

@@ -16,6 +16,59 @@ class WWD_Dashboards {
 	const META_KEY  = '_wwd_panels';
 
 	/**
+	 * Saved panels a site keeps without a licence. Two fill one row, so the
+	 * dashboard looks finished rather than half-built.
+	 */
+	const FREE_PANELS = 2;
+
+	/**
+	 * Whether this site has unlocked the paid features.
+	 *
+	 * @return bool
+	 */
+	public static function is_licensed() {
+		$licensed = defined( 'WWD_PRO' ) && WWD_PRO;
+
+		/**
+		 * Filters whether the paid features are unlocked.
+		 *
+		 * @param bool $licensed Licence state.
+		 */
+		return (bool) apply_filters( 'wwd_is_licensed', $licensed );
+	}
+
+	/**
+	 * How many panels this site may save in total.
+	 *
+	 * @return int
+	 */
+	public static function panel_limit() {
+		$limit = self::is_licensed() ? PHP_INT_MAX : self::FREE_PANELS;
+
+		/**
+		 * Filters the number of saved panels allowed.
+		 *
+		 * @param int $limit Panels.
+		 */
+		return (int) apply_filters( 'wwd_panel_limit', $limit );
+	}
+
+	/**
+	 * Panels saved across every dashboard.
+	 *
+	 * @return int
+	 */
+	public static function panel_count() {
+		$total = 0;
+
+		foreach ( self::all() as $dashboard ) {
+			$total += count( self::panels( $dashboard->ID ) );
+		}
+
+		return $total;
+	}
+
+	/**
 	 * Register the post type.
 	 *
 	 * @return void
@@ -106,6 +159,27 @@ class WWD_Dashboards {
 
 		if ( is_wp_error( $prepared ) ) {
 			return $prepared;
+		}
+
+		$limit = self::panel_limit();
+
+		// Only new panels are refused. Whatever a site already saved keeps
+		// working: taking away what somebody built is not a sales pitch.
+		if ( self::panel_count() >= $limit ) {
+			return new WP_Error(
+				'wwd_panel_limit',
+				sprintf(
+					/* translators: %d: how many panels this site may save. */
+					_n(
+						'This site can keep %d saved panel. Remove one to save another.',
+						'This site can keep %d saved panels. Remove one to save another.',
+						$limit,
+						'wp-wren-dashboards'
+					),
+					$limit
+				),
+				array( 'status' => 403 )
+			);
 		}
 
 		$stored = array(

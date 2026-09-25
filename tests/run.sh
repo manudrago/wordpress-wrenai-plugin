@@ -10,6 +10,8 @@ php tests/test-wren-payloads.php
 echo
 php tests/test-pairing.php
 echo
+php tests/test-limits.php
+echo
 php tests/test-direct-engine.php
 echo
 php tests/test-retries.php
