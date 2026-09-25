@@ -191,12 +191,20 @@ class WWD_Model_Client {
 		$budget  = (int) $max_out;
 		$attempt = 0;
 
-		while ( $attempt < 4 ) {
+		// Newer OpenAI models renamed max_tokens and refuse a temperature they
+		// did not choose. Which ones is not knowable from here, so the request
+		// adapts to whatever the provider objects to.
+		$dialect = array(
+			'budget_param' => 'max_tokens',
+			'temperature'  => true,
+		);
+
+		while ( $attempt < 6 ) {
 			$attempt++;
 
 			$request = 'google' === $shape
 				? $this->google_request( $system, $user, $budget, $strict )
-				: $this->openai_request( $system, $user, $budget, $strict );
+				: $this->openai_request( $system, $user, $budget, $strict, $dialect );
 
 			$response = wp_remote_post(
 				$request['url'],
@@ -261,6 +269,22 @@ class WWD_Model_Client {
 				continue;
 			}
 
+			$unsupported = 'google' === $shape ? '' : $this->unsupported_parameter( $code, $data );
+
+			if ( '' !== $unsupported ) {
+				if ( 'max_tokens' === $unsupported && 'max_tokens' === $dialect['budget_param'] ) {
+					$dialect['budget_param'] = 'max_completion_tokens';
+
+					continue;
+				}
+
+				if ( 'temperature' === $unsupported && $dialect['temperature'] ) {
+					$dialect['temperature'] = false;
+
+					continue;
+				}
+			}
+
 			if ( $this->too_long( $code, $data ) ) {
 				// The schema plus the room reserved for an answer does not fit
 				// this model. Reserve less and try once more; if even a short
@@ -289,6 +313,38 @@ class WWD_Model_Client {
 			'wwd_model_not_json',
 			__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'wp-wren-dashboards' )
 		);
+	}
+
+	/**
+	 * The parameter a provider says this model will not take.
+	 *
+	 * @param int   $code HTTP status.
+	 * @param array $data Decoded body.
+	 * @return string Parameter name, or empty when the complaint is elsewhere.
+	 */
+	protected function unsupported_parameter( $code, array $data ) {
+		if ( 400 !== $code && 422 !== $code ) {
+			return '';
+		}
+
+		$named = isset( $data['error']['param'] ) ? (string) $data['error']['param'] : '';
+
+		if ( '' !== $named ) {
+			return $named;
+		}
+
+		$message = self::message( $data );
+
+		if ( false === stripos( $message, 'unsupported' ) && false === stripos( $message, 'not supported' ) ) {
+			return '';
+		}
+
+		// "Unsupported parameter: 'max_tokens' is not supported with this model."
+		if ( preg_match( "/'([a-z_]+)'/i", $message, $found ) ) {
+			return $found[1];
+		}
+
+		return '';
 	}
 
 	/**
@@ -512,7 +568,7 @@ class WWD_Model_Client {
 			// These listings mix in speech, embedding and moderation models,
 			// which cannot answer a question. Matching on the name is a
 			// heuristic, but the alternative is offering models that fail.
-			if ( preg_match( '/(whisper|tts|embed|moderation|guard|stable-diffusion|dall-e)/i', $id ) ) {
+			if ( preg_match( '/(whisper|tts|embed|moderation|guard|stable-diffusion|dall-e|realtime|transcribe|audio|image|video|sora|speech)/i', $id ) ) {
 				continue;
 			}
 
@@ -594,18 +650,28 @@ class WWD_Model_Client {
 	 * @param int    $max_out Output tokens.
 	 * @return array
 	 */
-	protected function openai_request( $system, $user, $max_out, $strict = true ) {
+	protected function openai_request( $system, $user, $max_out, $strict = true, $dialect = array() ) {
+		$dialect = array_merge(
+			array(
+				'budget_param' => 'max_tokens',
+				'temperature'  => true,
+			),
+			$dialect
+		);
+
 		$headers = array( 'Content-Type' => 'application/json' );
 
 		if ( '' !== $this->api_key ) {
 			$headers['Authorization'] = 'Bearer ' . $this->api_key;
 		}
 
-		$body = array(
-			'model'       => $this->model,
-			'temperature' => 0,
-			'max_tokens'  => (int) $max_out,
-		);
+		$body = array( 'model' => $this->model );
+
+		if ( $dialect['temperature'] ) {
+			$body['temperature'] = 0;
+		}
+
+		$body[ $dialect['budget_param'] ] = (int) $max_out;
 
 		if ( $strict ) {
 			$body['response_format'] = array( 'type' => 'json_object' );

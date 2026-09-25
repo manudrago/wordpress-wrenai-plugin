@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, text-to-sql
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -78,6 +78,13 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 1.4.1 =
+* Newer OpenAI models renamed max_tokens to max_completion_tokens and refuse a temperature
+  they did not choose. The request now adapts to whatever the provider objects to, instead of
+  failing with a parameter name nobody outside the provider can be expected to know.
+* The model picker leaves out realtime, audio, image and video models, which cannot answer a
+  question at all.
 
 = 1.4.0 =
 * Charts with many categories, or long ones, are drawn horizontally: labels read normally

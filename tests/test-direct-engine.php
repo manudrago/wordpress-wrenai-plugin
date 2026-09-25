@@ -378,6 +378,58 @@ WWD_Test_HTTP::reset();
 WWD_Settings::update( array( 'model_name' => '' ) );
 
 // ---------------------------------------------------------------------------
+// When a model speaks a slightly different dialect
+// ---------------------------------------------------------------------------
+
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array(
+				'error' => array(
+					'message' => "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+				),
+			),
+		),
+		array(
+			'response' => array(
+				'choices' => array( array( 'message' => array( 'content' => '{"sql": "SELECT 4 LIMIT 1"}' ) ) ),
+			),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'a renamed parameter is not a dead end', ! is_wp_error( $result ) && 'SELECT 4 LIMIT 1' === $result['sql'] );
+check( 'the retry uses the name the model wants', isset( WWD_Test_HTTP::$requests[1]['body']['max_completion_tokens'] ) );
+check( 'and drops the one it refused', ! isset( WWD_Test_HTTP::$requests[1]['body']['max_tokens'] ) );
+
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 400,
+			'response' => array(
+				'error' => array(
+					'param'   => 'temperature',
+					'message' => "Unsupported value: 'temperature' does not support 0 with this model.",
+				),
+			),
+		),
+		array(
+			'response' => array(
+				'choices' => array( array( 'message' => array( 'content' => '{"sql": "SELECT 5 LIMIT 1"}' ) ) ),
+			),
+		),
+	)
+);
+
+$result = $engine->start_sql( 'x', array() );
+
+check( 'a refused temperature is dropped, not fought over', ! is_wp_error( $result ) && 'SELECT 5 LIMIT 1' === $result['sql'] );
+check( 'and really is absent from the retry', ! isset( WWD_Test_HTTP::$requests[1]['body']['temperature'] ) );
+
+// ---------------------------------------------------------------------------
 // When the schema does not fit the model
 // ---------------------------------------------------------------------------
 
@@ -459,6 +511,9 @@ WWD_Test_HTTP::$response = array(
 		array( 'id' => 'llama-4-scout-17b' ),
 		array( 'id' => 'whisper-large-v3' ),
 		array( 'id' => 'llama-guard-4-12b' ),
+		array( 'id' => 'gpt-realtime-mini' ),
+		array( 'id' => 'gpt-image-2' ),
+		array( 'id' => 'sora-2-pro' ),
 		array( 'id' => 'qwen3-32b' ),
 	),
 );
@@ -468,7 +523,7 @@ $models = $client->models();
 
 check( 'an OpenAI-compatible provider is asked the same way', 'https://api.groq.com/openai/v1/models' === WWD_Test_HTTP::$last['url'], WWD_Test_HTTP::$last['url'] );
 check( 'with a bearer token', 'Bearer test-key' === WWD_Test_HTTP::$last['headers']['Authorization'] );
-check( 'speech and moderation models are left out', array( 'llama-4-scout-17b', 'qwen3-32b' ) === $models, wp_json_encode( $models ) );
+check( 'only models that can answer a question are offered', array( 'llama-4-scout-17b', 'qwen3-32b' ) === $models, wp_json_encode( $models ) );
 
 WWD_Test_HTTP::reset();
 WWD_Test_HTTP::$response = array( 'data' => array() );
