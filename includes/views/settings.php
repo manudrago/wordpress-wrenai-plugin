@@ -15,7 +15,11 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 <div class="wrap wwd-wrap">
 	<h1><?php esc_html_e( 'DataChat AI', 'datachat-ai' ); ?></h1>
 
-	<?php if ( 'cache' === $updated ) : ?>
+	<?php if ( 'license' === $updated ) : ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Licence updated.', 'datachat-ai' ); ?></p></div>
+	<?php elseif ( 'license-failed' === $updated ) : ?>
+		<div class="notice notice-error is-dismissible"><p><?php echo esc_html( WWD_License::summary() ); ?></p></div>
+	<?php elseif ( 'cache' === $updated ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Cached results cleared.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( $updated ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'datachat-ai' ); ?></p></div>
@@ -77,6 +81,51 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 			<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=wwd-schema' ) ); ?>"><?php esc_html_e( 'Data & schema', 'datachat-ai' ); ?></a>
 		</div>
 	</div>
+
+	<?php if ( WWD_License::is_paid_edition() ) : ?>
+		<?php $wwd_license = WWD_License::state(); ?>
+		<div class="wwd-pair-card">
+			<h2><?php esc_html_e( 'Licence', 'datachat-ai' ); ?></h2>
+			<p class="wwd-status <?php echo WWD_License::is_valid() ? 'is-ok' : 'is-warn'; ?>">
+				<?php echo esc_html( WWD_License::summary() ); ?>
+			</p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="wwd_license">
+				<?php wp_nonce_field( 'wwd_license' ); ?>
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="wwd-license-key"><?php esc_html_e( 'Licence key', 'datachat-ai' ); ?></label></th>
+						<td>
+							<input name="license_key" id="wwd-license-key" type="text" class="regular-text code" autocomplete="off"
+								value="<?php echo esc_attr( $wwd_license['key'] ); ?>">
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: this site's domain. */
+									esc_html__( 'The key is tied to %s.', 'datachat-ai' ),
+									esc_html( WWD_License::domain() )
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+				</table>
+
+				<p>
+					<button type="submit" name="license_action" value="activate" class="button button-primary">
+						<?php esc_html_e( 'Activate', 'datachat-ai' ); ?>
+					</button>
+					<?php if ( '' !== $wwd_license['key'] ) : ?>
+						<button type="submit" name="license_action" value="deactivate" class="button">
+							<?php esc_html_e( 'Remove from this site', 'datachat-ai' ); ?>
+						</button>
+					<?php endif; ?>
+				</p>
+			</form>
+		</div>
+	<?php endif; ?>
 
 	<div class="wwd-pair-card wwd-engine-pane" data-wwd-pane="wren" <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
 		<h2><?php esc_html_e( 'Connect a server automatically', 'datachat-ai' ); ?></h2>

@@ -40,6 +40,11 @@ class WWD_Plugin {
 	 */
 	public function init() {
 		add_action( 'init', array( 'WWD_Dashboards', 'register' ) );
+
+		if ( WWD_License::is_paid_edition() ) {
+			add_filter( 'wwd_is_licensed', array( 'WWD_License', 'is_valid' ) );
+			add_action( 'admin_init', array( 'WWD_License', 'maybe_recheck' ) );
+		}
 		add_action( 'admin_notices', array( $this, 'setup_notice' ) );
 
 		$rest = new WWD_REST();

@@ -325,6 +325,52 @@ add_filter( 'wwd_thread_length', fn() => 3 );
 add_filter( 'wwd_request_args', function ( $args, $url, $method ) { /* … */ return $args; }, 10, 3 );
 ```
 
+## Le tre edizioni
+
+Un solo codice, tre archivi. Quello che la licenza sblocca è già nel plugin,
+dietro il filtro `wwd_is_licensed`: le build a pagamento aggiungono un file,
+`edition.php`, che dice quale edizione è e dove si verificano le chiavi.
+
+```bash
+./bin/build-zip.sh --all                    # free, pro, agency
+./bin/build-zip.sh --edition pro            # solo pro
+./bin/build-zip.sh --edition pro --endpoint https://negozio.tld/
+./bin/build-zip.sh --slug cartella-esistente   # per aggiornare un sito in place
+```
+
+| Edizione | Cartella | Licenza |
+|---|---|---|
+| Free | `datachat-ai` | nessuna, 2 pannelli salvati |
+| Pro | `datachat-ai-pro` | chiave, pannelli illimitati |
+| Agency | `datachat-ai-agency` | chiave, multisito e white-label |
+
+### Adattare la verifica al proprio negozio
+
+La richiesta di default manda `action`, `license_key`, `product` e `domain` in
+POST e si aspetta un JSON con `status`/`license`/`success`. Ogni plugin di
+licenze la dice a modo suo, quindi due filtri bastano per adattarla senza
+toccare il codice:
+
+```php
+add_filter( 'wwd_license_request', function ( $request, $key ) {
+	$request['url']  = 'https://negozio.tld/wp-json/miolicense/v1/check';
+	$request['body'] = array( 'key' => $key, 'site' => WWD_License::domain() );
+
+	return $request;
+}, 10, 2 );
+
+add_filter( 'wwd_license_response', function ( $answer, $data, $body ) {
+	$answer['status']  = ! empty( $data['ok'] ) ? 'valid' : 'invalid';
+	$answer['expires'] = isset( $data['valid_until'] ) ? $data['valid_until'] : '';
+
+	return $answer;
+}, 10, 3 );
+```
+
+Un negozio irraggiungibile, o che risponde qualcosa di incomprensibile, **non**
+spegne il plugin: solo una risposta che rifiuta davvero la chiave lo fa. Una
+licenza già confermata regge due settimane di silenzio.
+
 ## Test
 
 Tre suite, nessuna dipendenza: servono solo `php` e `node`.

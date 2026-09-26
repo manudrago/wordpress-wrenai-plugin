@@ -375,7 +375,11 @@ function wp_remote_request( $url, $args = array() ) {
 		'url'     => $url,
 		'method'  => isset( $args['method'] ) ? $args['method'] : 'GET',
 		'headers' => isset( $args['headers'] ) ? $args['headers'] : array(),
-		'body'    => isset( $args['body'] ) ? json_decode( $args['body'], true ) : null,
+		// A body is JSON for the model client and a plain array for the licence
+		// check, and a test wants to see either as it was sent.
+		'body'    => isset( $args['body'] )
+			? ( is_array( $args['body'] ) ? $args['body'] : json_decode( $args['body'], true ) )
+			: null,
 	);
 
 	WWD_Test_HTTP::$requests[] = WWD_Test_HTTP::$last;
@@ -610,6 +614,10 @@ function delete_transient( $key ) {
  *
  * @return int
  */
+function home_url( $path = '' ) {
+	return 'https://shop.example' . $path;
+}
+
 function get_current_user_id() {
 	return 1;
 }

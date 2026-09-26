@@ -3,7 +3,7 @@
  * Plugin Name:       DataChat AI
  * Plugin URI:        https://github.com/manudrago/wordpress-wrenai-plugin
  * Description:       Ask your WordPress or WooCommerce data anything in plain language and get instant, saveable dashboards. The model writes the SQL, a strict guard checks it, your database answers - and the rows never leave your site.
- * Version:           2.0.0
+ * Version:           2.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -17,11 +17,21 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WWD_VERSION', '2.0.0' );
+define( 'WWD_VERSION', '2.1.0' );
 define( 'WWD_PLUGIN_FILE', __FILE__ );
 define( 'WWD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WWD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+/*
+ * Which edition this copy is. The build script writes edition.php into the
+ * paid archives; without it this is the free plugin, and the licence screen
+ * does not exist.
+ */
+if ( file_exists( WWD_PLUGIN_DIR . 'edition.php' ) ) {
+	require_once WWD_PLUGIN_DIR . 'edition.php';
+}
+
+require_once WWD_PLUGIN_DIR . 'includes/class-wwd-license.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-settings.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-logger.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-schema.php';

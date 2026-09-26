@@ -26,6 +26,7 @@ class WWD_Admin {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 		add_action( 'admin_post_wwd_save_settings', array( $this, 'save_settings' ) );
+		add_action( 'admin_post_wwd_license', array( $this, 'save_license' ) );
 		add_action( 'admin_post_wwd_clear_log', array( $this, 'clear_log' ) );
 		add_action( 'admin_post_wwd_flush_cache', array( $this, 'flush_cache' ) );
 		add_action( 'admin_post_wwd_panel_action', array( $this, 'panel_action' ) );
@@ -182,6 +183,37 @@ class WWD_Admin {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Activate or remove the licence key.
+	 *
+	 * @return void
+	 */
+	public function save_license() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Administrator access required.', 'datachat-ai' ) );
+		}
+
+		check_admin_referer( 'wwd_license' );
+
+		$action = isset( $_POST['license_action'] ) ? sanitize_key( wp_unslash( $_POST['license_action'] ) ) : '';
+		$notice = 'license';
+
+		if ( 'deactivate' === $action ) {
+			WWD_License::deactivate();
+		} else {
+			$key    = isset( $_POST['license_key'] ) ? sanitize_text_field( wp_unslash( $_POST['license_key'] ) ) : '';
+			$result = WWD_License::activate( $key );
+
+			if ( is_wp_error( $result ) ) {
+				$notice = 'license-failed';
+			}
+		}
+
+		wp_safe_redirect( admin_url( 'admin.php?page=wwd-settings&updated=' . $notice ) );
+
+		exit;
 	}
 
 	/**

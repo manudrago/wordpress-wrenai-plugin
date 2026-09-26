@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.0.0
+Stable tag: 2.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,12 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.1.0 =
+* Paid editions: one codebase, three builds. A Pro or Agency archive carries an edition marker
+  and a licence screen; the free one has neither. A shop that is down or answers something
+  unreadable never locks a paying site out - only an answer that actually refuses the key does,
+  and a confirmed licence keeps working for two weeks of silence.
 
 = 2.0.0 =
 * New name: DataChat AI. The plugin no longer runs on Wren AI by default, and carrying
