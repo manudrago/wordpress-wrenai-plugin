@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,11 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.1.1 =
+* Installing a paid edition next to the free one no longer breaks the site. The second copy to
+  load stands down and says which one to deactivate, instead of crashing on classes the other
+  one already declared.
 
 = 2.1.0 =
 * Paid editions: one codebase, three builds. A Pro or Agency archive carries an edition marker

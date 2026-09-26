@@ -344,6 +344,11 @@ dietro il filtro `wwd_is_licensed`: le build a pagamento aggiungono un file,
 | Pro | `datachat-ai-pro` | chiave, pannelli illimitati |
 | Agency | `datachat-ai-agency` | chiave, multisito e white-label |
 
+Free e Pro stanno in cartelle diverse, quindi **si possono attivare entrambi**.
+Se succede, la seconda copia che si carica non carica niente e mostra un avviso
+con quale disattivare: senza quella guardia sarebbe un fatal error, perché le
+due copie dichiarano le stesse classi.
+
 ### Adattare la verifica al proprio negozio
 
 La richiesta di default manda `action`, `license_key`, `product` e `domain` in

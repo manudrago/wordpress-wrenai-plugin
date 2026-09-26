@@ -651,3 +651,34 @@ function wp_generate_uuid4() {
 function wp_rand_int() {
 	return random_int( 0, 0xffff );
 }
+
+/**
+ * Escapers. The plugin's own escaping is what matters in production; here they
+ * only need to exist and not mangle what a test then looks for.
+ *
+ * @param string $text Text.
+ * @return string
+ */
+function esc_html( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES );
+}
+
+/**
+ * Attribute escaper.
+ *
+ * @param string $text Text.
+ * @return string
+ */
+function esc_attr( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES );
+}
+
+/**
+ * URL escaper.
+ *
+ * @param string $url URL.
+ * @return string
+ */
+function esc_url( $url ) {
+	return (string) $url;
+}
