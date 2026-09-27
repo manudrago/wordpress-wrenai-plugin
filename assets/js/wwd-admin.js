@@ -317,6 +317,58 @@
 		} ).catch( function () {} );
 	}
 
+	// The model that comes with Pro needs no key, model or URL: hide what
+	// does not apply, and bring it back when another provider is picked.
+	function bindProviderToggle() {
+		var select = document.getElementById( 'wwd-provider' );
+
+		if ( ! select ) {
+			return;
+		}
+
+		function apply() {
+			var included = 'included' === select.value;
+
+			document.querySelectorAll( '.wwd-own-model' ).forEach( function ( node ) {
+				node.hidden = included;
+			} );
+
+			document.querySelectorAll( '.wwd-included-note' ).forEach( function ( node ) {
+				node.hidden = ! included;
+			} );
+
+			// Where to get a key, and what the empty fields default to, are
+			// the chosen provider's - not the one saved last time.
+			var option = select.options[ select.selectedIndex ];
+			var keys = option ? option.getAttribute( 'data-keys' ) : '';
+			var link = document.querySelector( '.wwd-keys-link' );
+			var model = document.getElementById( 'wwd-model-name' );
+			var base = document.getElementById( 'wwd-model-base' );
+
+			if ( link ) {
+				var anchor = link.querySelector( 'a' );
+
+				link.hidden = included || ! keys;
+
+				if ( anchor && keys ) {
+					anchor.href = keys;
+					anchor.textContent = keys.replace( /^https?:\/\//, '' ).split( '/' )[ 0 ];
+				}
+			}
+
+			if ( option && model ) {
+				model.placeholder = option.getAttribute( 'data-model' ) || '';
+			}
+
+			if ( option && base ) {
+				base.placeholder = option.getAttribute( 'data-base' ) || '';
+			}
+		}
+
+		select.addEventListener( 'change', apply );
+		apply();
+	}
+
 	// Nobody should have to guess a model id, and no list written into a
 	// release stays right: ask the provider what it has.
 	function bindModelList() {
@@ -399,6 +451,7 @@
 		bindHealth();
 		bindSync();
 		bindEngine();
+		bindProviderToggle();
 		bindModelList();
 		bindPairing();
 		bindPreview();

@@ -43,12 +43,12 @@ modello diretto: si sceglie nelle impostazioni, il resto del plugin è identico.
 
 ## Cosa ottieni
 
-- **`[wren_ai_dashboard]`** — il form "chiedi qualsiasi cosa". Domanda → SQL → dati → grafico.
+- **`[datachat]`** — il form "chiedi qualsiasi cosa". Domanda → SQL → dati → grafico.
   Include domande di esempio cliccabili, follow-up conversazionali ("e per l'anno scorso?"),
   export CSV, SQL a vista (disattivabile) e pulsante *Salva nella dashboard*. Il tipo di
   grafico proposto dal modello è solo il default: chi legge sceglie tra colonne, barre, linea,
   area e torta — e la scelta viene salvata insieme al pannello.
-- **`[wren_dashboard id="12"]`** — una dashboard salvata: griglia di pannelli, ognuno
+- **`[datachat_dashboard id="12"]`** — una dashboard salvata: griglia di pannelli, ognuno
   ri-eseguito dal vivo a ogni caricamento (con cache), con refresh automatico opzionale.
 - **Admin** — connessione a Wren AI, scelta delle tabelle condivise, contesto di business,
   deploy del modello semantico, log delle query, gestione dashboard e pannelli.
@@ -149,7 +149,7 @@ volta che cambi tabelle, contesto o struttura del sito.
 Crea una pagina (es. `/analytics`) e inserisci:
 
 ```
-[wren_ai_dashboard]
+[datachat]
 ```
 
 Fatto: chi ha il permesso può fare domande e salvare le risposte come pannelli.
@@ -172,7 +172,7 @@ Elementor interna. Per l'uso quotidiano non serve creare nessuna pagina.
 
 ## Shortcode
 
-### `[wren_ai_dashboard]`
+### `[datachat]` (Pro e Agency)
 
 | Attributo | Default | Descrizione |
 |---|---|---|
@@ -183,13 +183,13 @@ Elementor interna. Per l'uso quotidiano non serve creare nessuna pagina.
 | `height` | `340` | Altezza dei grafici in px |
 
 ```
-[wren_ai_dashboard dashboard="12" title="Chiedi ai dati"
+[datachat dashboard="12" title="Chiedi ai dati"
   examples="Vendite di questo mese|Top 10 autori|Commenti in moderazione"]
 ```
 
 Alias: `[wren_ask]`.
 
-### `[wren_dashboard]`
+### `[datachat_dashboard]` (Pro e Agency)
 
 | Attributo | Default | Descrizione |
 |---|---|---|
@@ -198,7 +198,7 @@ Alias: `[wren_ask]`.
 | `refresh` | `0` | Secondi tra un aggiornamento automatico e l'altro (0 = mai) |
 
 ```
-[wren_dashboard id="12" refresh="300"]
+[datachat_dashboard id="12" refresh="300"]
 ```
 
 ## Sicurezza

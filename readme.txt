@@ -27,10 +27,10 @@ one away. A Wren AI service can be used instead of the model, for sites that alr
 Everything happens in wp-admin under **DataChat**: Ask, Dashboards, Data & schema, Settings,
 Query log. No page to create, no shortcode to paste, and the WordPress login is the only door.
 
-**Shortcodes** (optional, for showing a dashboard to people without wp-admin access)
+**Shortcodes** (Pro and Agency, for showing a dashboard to people without wp-admin access)
 
-* `[wren_ai_dashboard]` — the ask form.
-* `[wren_dashboard id="12"]` — a saved dashboard.
+* `[datachat]` — the ask form.
+* `[datachat_dashboard id="12"]` — a saved dashboard.
 
 **Security**
 
@@ -50,7 +50,7 @@ and statement is logged.
    press "Test connection".
 3. DataChat → Data & schema: pick the tables to share and add business context. Nothing to
    deploy — the schema travels with every question.
-4. DataChat → Ask, and ask something. Optionally put `[wren_ai_dashboard]` on a page to reach
+4. DataChat → Ask, and ask something. With Pro or Agency, put `[datachat]` on a page to reach
    people who do not have wp-admin access.
 
 Prefer to run Wren AI? Pick that engine in Settings; deploy/README.md installs one on any
@@ -90,6 +90,12 @@ the shared tables, so share only tables that are safe to expose.
 * White label (Agency). Rename the plugin and change its menu icon for your clients: the admin
   menu, the screens and the email reports carry your name instead.
 * Agency licences can cover several sites; the shop decides how many.
+* Shortcodes are now part of Pro and Agency, and documented under their current names,
+  [datachat] and [datachat_dashboard]. Without a licence a shortcode shows nothing to visitors and
+  a one-line note to administrators. The old [wren_…] names keep working.
+* Settings: choosing the model included with Pro hides the key, model and URL fields, which do not
+  apply to it; picking another provider brings them back with that provider's defaults. The raw
+  licence-server reply is no longer shown.
 
 = 2.4.0 =
 * Pro comes with a model. A Pro licence asks questions through the shop that sold it, so there

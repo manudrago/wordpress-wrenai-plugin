@@ -25,15 +25,15 @@ class WWD_Shortcodes {
 	 * @return void
 	 */
 	public function init() {
-		add_shortcode( 'wren_ai_dashboard', array( $this, 'render_ask' ) );
-		add_shortcode( 'wren_ask', array( $this, 'render_ask' ) );
-		add_shortcode( 'wren_dashboard', array( $this, 'render_dashboard' ) );
+		add_shortcode( 'datachat', array( $this, 'shortcode_ask' ) );
+		add_shortcode( 'datachat_dashboard', array( $this, 'shortcode_dashboard' ) );
 
 		// The plugin was called Wren AI Dashboards until 2.0. Pages out there
 		// still carry those shortcodes, and breaking somebody's published page
 		// over a rename would be indefensible.
-		add_shortcode( 'datachat', array( $this, 'render_ask' ) );
-		add_shortcode( 'datachat_dashboard', array( $this, 'render_dashboard' ) );
+		add_shortcode( 'wren_ai_dashboard', array( $this, 'shortcode_ask' ) );
+		add_shortcode( 'wren_ask', array( $this, 'shortcode_ask' ) );
+		add_shortcode( 'wren_dashboard', array( $this, 'shortcode_dashboard' ) );
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
 
@@ -147,7 +147,42 @@ class WWD_Shortcodes {
 	}
 
 	/**
-	 * The ask form: [wren_ai_dashboard]
+	 * [datachat] on a page: a paid feature. The screens in wp-admin call
+	 * render_ask() directly and are not affected.
+	 *
+	 * @param array $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function shortcode_ask( $atts ) {
+		return WWD_Dashboards::is_licensed() ? $this->render_ask( $atts ) : $this->locked();
+	}
+
+	/**
+	 * [datachat_dashboard] on a page: a paid feature.
+	 *
+	 * @param array $atts Shortcode attributes.
+	 * @return string
+	 */
+	public function shortcode_dashboard( $atts ) {
+		return WWD_Dashboards::is_licensed() ? $this->render_dashboard( $atts ) : $this->locked();
+	}
+
+	/**
+	 * What a shortcode shows without a licence: a word to the site's
+	 * administrator, and nothing at all to visitors.
+	 *
+	 * @return string
+	 */
+	protected function locked() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return '';
+		}
+
+		return $this->notice( __( 'DataChat shortcodes come with the Pro and Agency editions. Only administrators see this message.', 'datachat-ai' ) );
+	}
+
+	/**
+	 * The ask form: [datachat]
 	 *
 	 * @param array $atts Shortcode attributes.
 	 * @return string
@@ -162,7 +197,7 @@ class WWD_Shortcodes {
 				'height'      => '340',
 			),
 			$atts,
-			'wren_ai_dashboard'
+			'datachat'
 		);
 
 		$rest = new WWD_REST();
@@ -255,7 +290,7 @@ class WWD_Shortcodes {
 	}
 
 	/**
-	 * A saved dashboard: [wren_dashboard id="12"]
+	 * A saved dashboard: [datachat_dashboard id="12"]
 	 *
 	 * @param array $atts Shortcode attributes.
 	 * @return string
@@ -268,7 +303,7 @@ class WWD_Shortcodes {
 				'refresh' => '0',
 			),
 			$atts,
-			'wren_dashboard'
+			'datachat_dashboard'
 		);
 
 		$dashboard_id = (int) $atts['id'];

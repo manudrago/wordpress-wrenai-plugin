@@ -169,31 +169,6 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 				</p>
 			</form>
 
-			<?php if ( $wwd_license['last_code'] || '' !== $wwd_license['last_body'] ) : ?>
-				<details class="wwd-license-reply">
-					<summary><?php esc_html_e( 'What the licence server replied', 'datachat-ai' ); ?></summary>
-					<p class="description">
-						<?php
-						printf(
-							/* translators: %d: HTTP status code. */
-							esc_html__( 'HTTP %d from', 'datachat-ai' ),
-							(int) $wwd_license['last_code']
-						);
-						?>
-						<code><?php echo esc_html( WWD_License::endpoint() ); ?></code>
-					</p>
-					<pre class="wwd-license-raw"><?php echo esc_html( $wwd_license['last_body'] ); ?></pre>
-					<p class="description">
-						<?php
-						if ( '' !== WWD_License::public_key() ) {
-							esc_html_e( 'This build only believes answers the shop has signed, so nothing that merely answers at that address can unlock it.', 'datachat-ai' );
-						} else {
-							esc_html_e( 'Only useful when a key is refused and you do not know why. Send this to support; it holds no password.', 'datachat-ai' );
-						}
-						?>
-					</p>
-				</details>
-			<?php endif; ?>
 		</div>
 	<?php endif; ?>
 
@@ -281,29 +256,26 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 					<td>
 						<select name="wwd[model_provider]" id="wwd-provider">
 							<?php foreach ( WWD_Model_Client::providers() as $wwd_id => $wwd_provider ) : ?>
-								<option value="<?php echo esc_attr( $wwd_id ); ?>" <?php selected( $settings['model_provider'], $wwd_id ); ?>>
+								<option value="<?php echo esc_attr( $wwd_id ); ?>" <?php selected( $settings['model_provider'], $wwd_id ); ?>
+									data-keys="<?php echo esc_attr( $wwd_provider['keys'] ); ?>"
+									data-model="<?php echo esc_attr( $wwd_provider['model'] ); ?>"
+									data-base="<?php echo esc_attr( $wwd_provider['base'] ? $wwd_provider['base'] : 'http://localhost:11434/v1' ); ?>">
 									<?php echo esc_html( $wwd_provider['label'] ); ?>
 								</option>
 							<?php endforeach; ?>
 						</select>
 						<?php $wwd_current = WWD_Model_Client::provider( $settings['model_provider'] ); ?>
-						<?php if ( 'included' === $settings['model_provider'] ) : ?>
-							<p class="description"><?php esc_html_e( 'Questions go to the model that comes with your Pro licence, through the shop that sold it. Nothing to fill in below: the key, model and URL fields are ignored while this is selected. Your licence includes a monthly allowance of questions; choose another provider and paste your own key to go beyond it.', 'datachat-ai' ); ?></p>
+						<?php $wwd_included = 'included' === $settings['model_provider']; ?>
+						<?php if ( array_key_exists( 'included', WWD_Model_Client::providers() ) ) : ?>
+							<p class="description wwd-included-note" <?php echo $wwd_included ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the model that comes with your Pro licence - nothing else to set up. It includes a monthly allowance of questions; to go beyond it, choose another provider and paste your own key.', 'datachat-ai' ); ?></p>
 						<?php endif; ?>
-						<?php if ( $wwd_current['keys'] ) : ?>
-							<p class="description">
-								<?php
-								printf(
-									/* translators: %s: link where the provider hands out API keys. */
-									esc_html__( 'Get a key at %s.', 'datachat-ai' ),
-									'<a href="' . esc_url( $wwd_current['keys'] ) . '" target="_blank" rel="noreferrer noopener">' . esc_html( wp_parse_url( $wwd_current['keys'], PHP_URL_HOST ) ) . '</a>'
-								);
-								?>
-							</p>
-						<?php endif; ?>
+						<p class="description wwd-keys-link" <?php echo ( $wwd_included || ! $wwd_current['keys'] ) ? 'hidden' : ''; ?>>
+							<?php esc_html_e( 'Get a key at', 'datachat-ai' ); ?>
+							<a href="<?php echo esc_url( $wwd_current['keys'] ); ?>" target="_blank" rel="noreferrer noopener"><?php echo esc_html( (string) wp_parse_url( $wwd_current['keys'], PHP_URL_HOST ) ); ?></a>.
+						</p>
 					</td>
 				</tr>
-				<tr>
+				<tr class="wwd-own-model" <?php echo $wwd_included ? 'hidden' : ''; ?>>
 					<th scope="row"><label for="wwd-model-key"><?php esc_html_e( 'API key', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_api_key]" id="wwd-model-key" type="password" class="regular-text code" autocomplete="off"
@@ -311,7 +283,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 						<p class="description"><?php esc_html_e( 'Stored in this site\'s options table and sent only to the provider above.', 'datachat-ai' ); ?></p>
 					</td>
 				</tr>
-				<tr>
+				<tr class="wwd-own-model" <?php echo $wwd_included ? 'hidden' : ''; ?>>
 					<th scope="row"><label for="wwd-model-name"><?php esc_html_e( 'Model', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_name]" id="wwd-model-name" type="text" class="regular-text code"
@@ -325,7 +297,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 						<div class="wwd-model-choices" id="wwd-model-choices" hidden></div>
 					</td>
 				</tr>
-				<tr>
+				<tr class="wwd-own-model" <?php echo $wwd_included ? 'hidden' : ''; ?>>
 					<th scope="row"><label for="wwd-model-base"><?php esc_html_e( 'API base URL', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_base]" id="wwd-model-base" type="url" class="regular-text code"
@@ -481,12 +453,15 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 	</form>
 
 	<h2 class="title"><?php esc_html_e( 'Shortcodes', 'datachat-ai' ); ?></h2>
+	<?php if ( ! WWD_Dashboards::is_licensed() ) : ?>
+		<p class="description"><?php esc_html_e( 'Shortcodes come with the Pro and Agency editions: put the ask form or a saved dashboard on any page of your site, for people without wp-admin access.', 'datachat-ai' ); ?></p>
+	<?php endif; ?>
 	<p><?php esc_html_e( 'Put the ask form on any page:', 'datachat-ai' ); ?></p>
-	<p><code>[wren_ai_dashboard]</code></p>
+	<p><code>[datachat]</code></p>
 	<p><?php esc_html_e( 'With a target dashboard, a title and your own example questions:', 'datachat-ai' ); ?></p>
-	<p><code>[wren_ai_dashboard dashboard="12" title="Ask the data" examples="Sales this month|Top authors"]</code></p>
+	<p><code>[datachat dashboard="12" title="Ask the data" examples="Sales this month|Top authors"]</code></p>
 	<p><?php esc_html_e( 'Render a saved dashboard:', 'datachat-ai' ); ?></p>
-	<p><code>[wren_dashboard id="12" refresh="120"]</code></p>
+	<p><code>[datachat_dashboard id="12" refresh="120"]</code></p>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wwd-inline-form">
 		<input type="hidden" name="action" value="wwd_flush_cache">

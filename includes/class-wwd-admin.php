@@ -160,10 +160,12 @@ class WWD_Admin {
 		echo WWD_Reports::form( $current ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts.
 
 		printf(
-			'<p class="description"><a href="%1$s">%2$s</a> · <code>[wren_dashboard id="%3$d"]</code></p>',
+			'<p class="description"><a href="%1$s">%2$s</a> · %3$s</p>',
 			esc_url( admin_url( 'edit.php?post_type=' . WWD_Dashboards::POST_TYPE ) ),
 			esc_html__( 'Rename or delete dashboards', 'datachat-ai' ),
-			(int) $current
+			WWD_Dashboards::is_licensed()
+				? '<code>[datachat_dashboard id="' . (int) $current . '"]</code>'
+				: esc_html__( 'Shortcodes to show this dashboard on a page come with Pro and Agency.', 'datachat-ai' )
 		);
 
 		echo '</div>';
@@ -414,7 +416,7 @@ class WWD_Admin {
 		$panels = WWD_Dashboards::panels( $post->ID );
 
 		if ( empty( $panels ) ) {
-			echo '<p>' . esc_html__( 'No panels yet. Open the page with the [wren_ai_dashboard] shortcode, ask a question and choose "Save to dashboard".', 'datachat-ai' ) . '</p>';
+			echo '<p>' . esc_html__( 'No panels yet. Open DataChat → Ask, ask a question and choose "Save to dashboard".', 'datachat-ai' ) . '</p>';
 
 			return;
 		}
@@ -460,8 +462,14 @@ class WWD_Admin {
 	 * @return void
 	 */
 	public function render_shortcode_box( $post ) {
+		if ( ! WWD_Dashboards::is_licensed() ) {
+			echo '<p>' . esc_html__( 'Shortcodes to show this dashboard on a page come with the Pro and Agency editions.', 'datachat-ai' ) . '</p>';
+
+			return;
+		}
+
 		echo '<p>' . esc_html__( 'Paste this shortcode into any page:', 'datachat-ai' ) . '</p>';
-		echo '<input type="text" class="widefat wwd-copy" readonly value="' . esc_attr( '[wren_dashboard id="' . $post->ID . '"]' ) . '">';
+		echo '<input type="text" class="widefat wwd-copy" readonly value="' . esc_attr( '[datachat_dashboard id="' . $post->ID . '"]' ) . '">';
 		echo '<p class="description">' . esc_html__( 'Add refresh="60" to reload the panels every 60 seconds.', 'datachat-ai' ) . '</p>';
 	}
 
