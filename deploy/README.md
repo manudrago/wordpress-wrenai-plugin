@@ -89,11 +89,16 @@ dominio?" e firma la risposta.
    non è un header né un parametro.
 
    Finché la costante non c'è, non viene nascosto niente.
-6. Per capire dove SLKWoo salva le chiavi su questo negozio, da loggato:
-   `/wp-json/datachat/v1/license/probe?key=UNA-CHIAVE-VERA`. Dice dove l'ha
-   trovata, se la passphrase c'è, se il feed è leggibile e su quali siti la
-   licenza risulta attiva, e quali prodotti sta nascondendo dal feed — senza
-   stampare nessuna chiave.
+6. Per capire dove SLKWoo salva le chiavi su questo negozio: **Strumenti →
+   DataChat licences**. Incolli una chiave già venduta (qualsiasi prodotto va
+   bene) e ti dice dove l'ha trovata, se la passphrase c'è, se il feed è
+   leggibile, quali prodotti sta nascondendo e su quali siti la licenza risulta
+   attiva — senza stampare nessuna chiave. Lì c'è anche la chiave pubblica.
+
+   La stessa cosa esiste come rotta REST (`/license/probe?key=…`) ma **non si
+   apre nel browser**: WordPress scarta l'autenticazione via cookie su una
+   richiesta REST senza nonce, quindi risponde 401 anche da loggato. Per uso a
+   mano, usa la pagina.
 
 ---
 

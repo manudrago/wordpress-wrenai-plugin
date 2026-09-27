@@ -675,6 +675,31 @@ $still_visible = Shop_Probe::call( 'from_feed', array( 'DCAI-HIDDEN-0001' ) );
 check( 'a hidden key is still visible to the shop itself', is_array( $still_visible ), wp_json_encode( $still_visible ) );
 check( 'with its expiry', '2029-05-05' === $still_visible['expires'] );
 
+// ---------------------------------------------------------------------------
+// The report, which the Tools page and the REST route share
+// ---------------------------------------------------------------------------
+
+add_test_filter( 'datachat_license_own_products', '5461' );
+add_test_filter( 'datachat_license_lookup', null );
+
+$report = DataChat_Licence_Endpoint::report( '' );
+
+check( 'the report says no key was given', false === $report['key_given'] );
+check( 'and whether it can sign', true === $report['can_sign'] );
+check( 'and whether a passphrase is set', true === $report['passphrase_set'] );
+check( 'and what it is hiding from the feed', array( '5461' ) === $report['hidden_products'], wp_json_encode( $report['hidden_products'] ) );
+check( 'and nothing about seats without a key', null === $report['seats'] );
+
+$raw = wp_json_encode( $report );
+
+check( 'the report prints no passphrase', false === strpos( $raw, $passphrase ), 'the passphrase is in the report' );
+check( 'and no private key', false === strpos( $raw, 'PRIVATE KEY' ) );
+
+// The route hands back exactly what the page prints.
+$through_rest = DataChat_Licence_Endpoint::probe( new WP_REST_Request( array( 'key' => '' ) ) )->get_data();
+
+check( 'the route and the page report the same thing', array_keys( $through_rest ) === array_keys( $report ) );
+
 echo "\n{$checks} checks, {$failures} failures\n";
 
 exit( $failures > 0 ? 1 : 0 );

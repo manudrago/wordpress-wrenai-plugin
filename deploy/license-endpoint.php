@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       DataChat Licence Endpoint
  * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -133,6 +133,75 @@ class DataChat_Licence_Endpoint {
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 		add_filter( 'rest_post_dispatch', array( __CLASS__, 'hide_own_keys' ), 10, 3 );
+		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+	}
+
+	/**
+	 * A page under Tools, because the REST probe cannot be opened in a browser.
+	 *
+	 * WordPress drops cookie authentication on a REST request that carries no
+	 * nonce - rest_cookie_check_errors() calls wp_set_current_user( 0 ) - so
+	 * pasting the probe URL into the address bar answers 401 however logged in
+	 * you are. An admin page has the nonce by being an admin page.
+	 *
+	 * @return void
+	 */
+	public static function menu() {
+		add_management_page(
+			'DataChat licences',
+			'DataChat licences',
+			'manage_options',
+			'datachat-licence',
+			array( __CLASS__, 'page' )
+		);
+	}
+
+	/**
+	 * Print the report, and the public key to build with.
+	 *
+	 * @return void
+	 */
+	public static function page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Administrator access required.', 'default' ) );
+		}
+
+		$key = '';
+
+		if ( isset( $_POST['datachat_probe_key'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			check_admin_referer( 'datachat_probe' );
+
+			$key = sanitize_text_field( wp_unslash( $_POST['datachat_probe_key'] ) );
+		}
+
+		$report = self::report( $key );
+		$keys   = self::keypair();
+
+		echo '<div class="wrap">';
+		echo '<h1>DataChat licences</h1>';
+
+		echo '<p>Paste a licence key this shop has already sold - any product will do - to see where it is stored and whether the feed can be read. No key is printed back.</p>';
+
+		echo '<form method="post">';
+		wp_nonce_field( 'datachat_probe' );
+		printf(
+			'<p><input type="text" name="datachat_probe_key" class="regular-text code" value="%s" autocomplete="off" placeholder="XXXX-XXXX-XXXX"> <button class="button button-primary">Look it up</button></p>',
+			esc_attr( $key )
+		);
+		echo '</form>';
+
+		echo '<h2>Report</h2>';
+		echo '<textarea readonly rows="22" style="width:100%;font-family:monospace;font-size:12px">';
+		echo esc_textarea( (string) wp_json_encode( $report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+		echo '</textarea>';
+
+		echo '<h2>Public key</h2>';
+		echo '<p>This is what the paid builds are compiled with. Public on purpose: it only checks a signature, it cannot make one.</p>';
+		echo '<textarea readonly rows="10" style="width:100%;font-family:monospace;font-size:12px">';
+		echo esc_textarea( isset( $keys['public'] ) ? $keys['public'] : '' );
+		echo '</textarea>';
+
+		echo '</div>';
 	}
 
 	/**
@@ -626,9 +695,21 @@ class DataChat_Licence_Endpoint {
 	 * @return WP_REST_Response
 	 */
 	public static function probe( WP_REST_Request $request ) {
+		return new WP_REST_Response( self::report( (string) $request->get_param( 'key' ) ), 200 );
+	}
+
+	/**
+	 * What this shop looks like from in here: where a key was found, whether
+	 * the feed can be read, what is being hidden from it, and which sites hold
+	 * the licence. No key is ever printed.
+	 *
+	 * @param string $key Licence key to look up, or empty for the rest.
+	 * @return array
+	 */
+	public static function report( $key = '' ) {
 		global $wpdb;
 
-		$key   = trim( (string) $request->get_param( 'key' ) );
+		$key   = trim( (string) $key );
 		$found = '' === $key ? null : self::find( $key );
 
 		$tables = $wpdb->get_col( "SHOW TABLES LIKE '%slk%'" ); // phpcs:ignore WordPress.DB
@@ -674,7 +755,7 @@ class DataChat_Licence_Endpoint {
 			}
 		}
 
-		return new WP_REST_Response( $report, 200 );
+		return $report;
 	}
 
 	/**
