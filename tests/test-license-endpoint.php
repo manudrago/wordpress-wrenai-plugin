@@ -56,11 +56,35 @@ function check( $label, $passed, $details = '' ) {
 function add_action() {}
 
 /**
+ * Filter registrar.
+ *
+ * @return void
+ */
+function add_filter() {}
+
+/**
  * Route registrar.
  *
  * @return void
  */
 function register_rest_route() {}
+
+/**
+ * In-process REST dispatch. Answers with whatever a test has staged.
+ *
+ * @param WP_REST_Request $request Request.
+ * @return WP_REST_Response
+ */
+function rest_do_request( $request ) {
+	$GLOBALS['wwd_rest_calls'][] = $request->get_route();
+
+	return new WP_REST_Response(
+		isset( $GLOBALS['wwd_rest_answer'] ) ? $GLOBALS['wwd_rest_answer'] : array(),
+		isset( $GLOBALS['wwd_rest_status'] ) ? (int) $GLOBALS['wwd_rest_status'] : 200
+	);
+}
+
+$GLOBALS['wwd_rest_calls'] = array();
 
 /**
  * REST URL.
@@ -129,6 +153,25 @@ class WP_REST_Response {
 	public function get_data() {
 		return $this->data;
 	}
+
+	/**
+	 * Replace the body.
+	 *
+	 * @param mixed $data Body.
+	 * @return void
+	 */
+	public function set_data( $data ) {
+		$this->data = $data;
+	}
+
+	/**
+	 * Whether this is an error response.
+	 *
+	 * @return bool
+	 */
+	public function is_error() {
+		return $this->status >= 400;
+	}
 }
 
 /**
@@ -144,12 +187,37 @@ class WP_REST_Request {
 	protected $params;
 
 	/**
-	 * Construct.
+	 * Route, when built the way WordPress builds one.
 	 *
-	 * @param array $params Parameters.
+	 * @var string
 	 */
-	public function __construct( array $params = array() ) {
-		$this->params = $params;
+	protected $route = '';
+
+	/**
+	 * Construct, either with parameters or as WordPress does, with a method
+	 * and a route.
+	 *
+	 * @param array|string $params Parameters, or an HTTP method.
+	 * @param string       $route  Route, when the first argument is a method.
+	 */
+	public function __construct( $params = array(), $route = '' ) {
+		if ( is_string( $params ) ) {
+			$this->params = array();
+			$this->route  = $route;
+
+			return;
+		}
+
+		$this->params = (array) $params;
+	}
+
+	/**
+	 * Route.
+	 *
+	 * @return string
+	 */
+	public function get_route() {
+		return $this->route;
 	}
 
 	/**
@@ -253,21 +321,21 @@ check( 'and a key too short to be one is ignored', 1 === count( $entries ) );
 // SLKWoo's own shape, as the live feed serves it: the key encrypted under
 // open_key, everything around it in clear.
 WWD_Test_HTTP::reset();
-WWD_Test_HTTP::$raw = wp_json_encode(
+
+$GLOBALS['wwd_rest_calls']  = array();
+$GLOBALS['wwd_rest_answer'] = array(
 	array(
-		array(
-			'product_id'   => 5461,
-			'open_key'     => slkwoo_encrypt( 'DCAI-PRO-1111-AAAA', $passphrase ),
-			'date_expiry'  => '2028-06-30',
-			'expiry_stamp' => 1845000000,
-		),
-		array(
-			'product_id'   => 5462,
-			'open_key'     => slkwoo_encrypt( 'DCAI-PRO-2222-BBBB', $passphrase ),
-			'date_expiry'  => '',
-			'expiry_stamp' => 1845000000,
-		),
-	)
+		'product_id'   => 5461,
+		'open_key'     => slkwoo_encrypt( 'DCAI-PRO-1111-AAAA', $passphrase ),
+		'date_expiry'  => '2028-06-30',
+		'expiry_stamp' => 1845000000,
+	),
+	array(
+		'product_id'   => 5462,
+		'open_key'     => slkwoo_encrypt( 'DCAI-PRO-2222-BBBB', $passphrase ),
+		'date_expiry'  => '',
+		'expiry_stamp' => 1845000000,
+	),
 );
 
 $hit = Shop_Probe::call( 'from_feed', array( 'DCAI-PRO-1111-AAAA' ) );
@@ -283,16 +351,17 @@ check( 'an entry with only a timestamp still gives a date', is_array( $stamped )
 check( 'a key that is not in the feed is not', null === Shop_Probe::call( 'from_feed', array( 'DCAI-PRO-9999-ZZZZ' ) ) );
 check( 'and something too short to be a key is refused outright', null === Shop_Probe::call( 'from_feed', array( 'AAA' ) ) );
 
-check( 'the feed is read once and then remembered', 1 === count( WWD_Test_HTTP::$requests ), count( WWD_Test_HTTP::$requests ) . ' requests' );
-check( 'from the shop it is installed on', 'https://shop.example/wp-json/rf/slk-woo-open-key_api/token' === WWD_Test_HTTP::$last['url'], WWD_Test_HTTP::$last['url'] );
+check( 'the feed is read once and then remembered', 1 === count( $GLOBALS['wwd_rest_calls'] ), wp_json_encode( $GLOBALS['wwd_rest_calls'] ) );
+check( 'from inside this WordPress, not over the network', '/rf/slk-woo-open-key_api/token' === $GLOBALS['wwd_rest_calls'][0], $GLOBALS['wwd_rest_calls'][0] );
+check( 'so no HTTP request is made to ourselves', 0 === count( WWD_Test_HTTP::$requests ), count( WWD_Test_HTTP::$requests ) . ' requests' );
 
 delete_transient( 'datachat_slkwoo_feed' );
 
-WWD_Test_HTTP::reset();
-WWD_Test_HTTP::$status = 500;
+$GLOBALS['wwd_rest_status'] = 500;
 
 check( 'a feed that is down yields no keys rather than an error', array() === Shop_Probe::call( 'feed_keys' ) );
 
+unset( $GLOBALS['wwd_rest_status'] );
 delete_transient( 'datachat_slkwoo_feed' );
 
 // ---------------------------------------------------------------------------
@@ -363,14 +432,12 @@ function wc_get_order( $order_id ) {
 	return new Shop_Order();
 }
 
-$feed_body = wp_json_encode(
+$GLOBALS['wwd_rest_answer'] = array(
 	array(
-		array(
-			'product_id'  => 5461,
-			'open_key'    => slkwoo_encrypt( 'DCAI-PRO-1111-AAAA', $passphrase ),
-			'date_expiry' => '2029-01-01',
-		),
-	)
+		'product_id'  => 5461,
+		'open_key'    => slkwoo_encrypt( 'DCAI-PRO-1111-AAAA', $passphrase ),
+		'date_expiry' => '2029-01-01',
+	),
 );
 
 /**
@@ -380,15 +447,9 @@ $feed_body = wp_json_encode(
  * @return void
  */
 function shop_is_listening() {
-	global $feed_body;
-
 	WWD_Test_HTTP::reset();
 
-	WWD_Test_HTTP::$responder = static function ( array $request ) use ( $feed_body ) {
-		if ( false !== strpos( (string) $request['url'], 'slk-woo-open-key_api' ) ) {
-			return array( 'raw' => $feed_body );
-		}
-
+	WWD_Test_HTTP::$responder = static function ( array $request ) {
 		$answer = DataChat_Licence_Endpoint::check(
 			new WP_REST_Request(
 				array(
@@ -552,6 +613,67 @@ $third = ask_from( 'DCAI-SEAT-0004', 'three.example' );
 
 check( 'a shop can sell a key for more sites', 'valid' === $third['status'] && 3 === $third['seats']['used'], wp_json_encode( $third['seats'] ) );
 check( 'and the fourth still waits', 'invalid' === ask_from( 'DCAI-SEAT-0004', 'four.example' )['status'] );
+
+// ---------------------------------------------------------------------------
+// Keeping our own keys out of the public feed
+// ---------------------------------------------------------------------------
+
+/**
+ * The feed as SLKWoo would serve it, two products in it.
+ *
+ * @return array
+ */
+function two_products() {
+	return array(
+		array( 'product_id' => 5461, 'open_key' => 'ours-encrypted', 'date_expiry' => '2029-01-01' ),
+		array( 'product_id' => 9999, 'open_key' => 'theirs-encrypted', 'date_expiry' => '2029-01-01' ),
+	);
+}
+
+$feed_route   = '/rf/slk-woo-open-key_api/token';
+$outside      = new WP_REST_Request( 'GET', $feed_route );
+$somewhere    = new WP_REST_Request( 'GET', '/wc/v3/orders' );
+
+// Nothing configured: the feed is not touched at all.
+add_test_filter( 'datachat_license_own_products', '' );
+
+$untouched = DataChat_Licence_Endpoint::hide_own_keys( new WP_REST_Response( two_products() ), null, $outside )->get_data();
+
+check( 'with no products named, the feed passes through whole', 2 === count( $untouched ) );
+
+// Ours named: ours goes, theirs stays.
+add_test_filter( 'datachat_license_own_products', '5461' );
+
+$filtered = DataChat_Licence_Endpoint::hide_own_keys( new WP_REST_Response( two_products() ), null, $outside )->get_data();
+
+check( 'our own product is not published', 1 === count( $filtered ), wp_json_encode( $filtered ) );
+check( 'and what stays is the other plugin\'s', '9999' === (string) $filtered[0]['product_id'] );
+check( 'whose key is untouched', 'theirs-encrypted' === $filtered[0]['open_key'] );
+check( 'and the list is still a list, not a list with a hole', array_keys( $filtered ) === range( 0, count( $filtered ) - 1 ) );
+
+// A feed that wraps its list is handled the same way.
+$wrapped = DataChat_Licence_Endpoint::hide_own_keys( new WP_REST_Response( array( 'data' => two_products() ) ), null, $outside )->get_data();
+
+check( 'a wrapped list is filtered inside its wrapper', 1 === count( $wrapped['data'] ), wp_json_encode( $wrapped ) );
+
+// Every other route is none of this filter's business.
+$other = DataChat_Licence_Endpoint::hide_own_keys( new WP_REST_Response( two_products() ), null, $somewhere )->get_data();
+
+check( 'another route is left alone', 2 === count( $other ) );
+
+// And the shop's own read still sees everything, because that is the only way
+// it can check its own keys once they are hidden.
+$GLOBALS['wwd_rest_answer'] = array(
+	array( 'product_id' => 5461, 'open_key' => slkwoo_encrypt( 'DCAI-HIDDEN-0001', $passphrase ), 'date_expiry' => '2029-05-05' ),
+);
+
+delete_transient( 'datachat_slkwoo_feed' );
+add_test_filter( 'datachat_license_lookup', null );
+
+$still_visible = Shop_Probe::call( 'from_feed', array( 'DCAI-HIDDEN-0001' ) );
+
+check( 'a hidden key is still visible to the shop itself', is_array( $still_visible ), wp_json_encode( $still_visible ) );
+check( 'with its expiry', '2029-05-05' === $still_visible['expires'] );
 
 echo "\n{$checks} checks, {$failures} failures\n";
 

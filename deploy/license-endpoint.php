@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       DataChat Licence Endpoint
  * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -22,6 +22,13 @@
  * holds only what has not expired yet - is looked up in the order it was sold
  * with. Either way the answer that goes back is yes, no or expired. No key ever
  * leaves this server.
+ *
+ * It also keeps this shop's own licence keys out of that public feed, once
+ * DATACHAT_PRODUCT_IDS names the products. Publishing them buys nothing when the
+ * keys are checked here, and costs a seat: anyone watching the feed could claim
+ * a site before the customer has installed anything. Other products are left
+ * alone, so a plugin that still reads the feed for its own keys carries on
+ * working and its customers notice nothing.
  *
  * One licence covers one site. That too can only be counted here, because only
  * the shop sees every site a key is used on: each answer records the domain
@@ -112,12 +119,20 @@ class DataChat_Licence_Endpoint {
 	const SIGNED_FIELDS = array( 'status', 'expires', 'domain', 'nonce', 'issued_at' );
 
 	/**
+	 * True only while this class is reading the feed for itself.
+	 *
+	 * @var bool
+	 */
+	protected static $own_read = false;
+
+	/**
 	 * Hook the routes.
 	 *
 	 * @return void
 	 */
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
+		add_filter( 'rest_post_dispatch', array( __CLASS__, 'hide_own_keys' ), 10, 3 );
 	}
 
 	/**
@@ -627,6 +642,7 @@ class DataChat_Licence_Endpoint {
 			'passphrase_set' => '' !== self::passphrase(),
 			'can_sign'       => '' !== self::sign( array( 'status' => 'probe' ) ),
 			'feed'           => self::feed_report(),
+			'hidden_products' => self::own_products(),
 			'seats'          => '' === $key ? null : array(
 				'limit' => self::seats_for( $key, is_array( $found ) ? $found : array() ),
 				'sites' => array_keys( (array) ( self::sites()[ hash( 'sha256', $key ) ] ?? array() ) ),
@@ -1042,20 +1058,75 @@ class DataChat_Licence_Endpoint {
 			return $cached['body'];
 		}
 
+		$decoded = self::read_feed();
+
+		// A miss is cached too, briefly, so a broken feed is not fetched again
+		// on every request.
+		set_transient( 'datachat_slkwoo_feed', array( 'body' => $decoded ), null === $decoded ? 60 : self::FEED_CACHE );
+
+		return $decoded;
+	}
+
+	/**
+	 * Fetch the feed, from inside this WordPress when it lives here.
+	 *
+	 * An in-process dispatch rather than an HTTP request to ourselves: it is
+	 * faster, it works on hosts that refuse loopback connections, and - since
+	 * hide_own_keys() strips this shop's own products from what the route
+	 * serves to the outside - it is the only way left to see them. The flag it
+	 * sets cannot be set by a caller, because it is not a header or a parameter:
+	 * it is a static property of this class, set for the length of one call.
+	 *
+	 * @return mixed|null Decoded feed, or null.
+	 */
+	protected static function read_feed() {
+		if ( self::feed_is_ours() && function_exists( 'rest_do_request' ) ) {
+			self::$own_read = true;
+
+			$response = rest_do_request( new WP_REST_Request( 'GET', '/' . ltrim( self::feed_route(), '/' ) ) );
+
+			self::$own_read = false;
+
+			if ( ! $response || $response->is_error() ) {
+				return null;
+			}
+
+			return $response->get_data();
+		}
+
 		$response = wp_remote_get( self::feed_url(), array( 'timeout' => 15 ) );
 
 		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
-			// Cached as a miss too, so a broken feed is not fetched per request.
-			set_transient( 'datachat_slkwoo_feed', array( 'body' => null ), 60 );
-
 			return null;
 		}
 
-		$decoded = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		return json_decode( (string) wp_remote_retrieve_body( $response ), true );
+	}
 
-		set_transient( 'datachat_slkwoo_feed', array( 'body' => $decoded ), self::FEED_CACHE );
+	/**
+	 * Whether the feed is served by this same WordPress.
+	 *
+	 * @return bool
+	 */
+	protected static function feed_is_ours() {
+		$feed = wp_parse_url( self::feed_url(), PHP_URL_HOST );
+		$here = wp_parse_url( home_url(), PHP_URL_HOST );
 
-		return $decoded;
+		return is_string( $feed ) && is_string( $here ) && strtolower( $feed ) === strtolower( $here );
+	}
+
+	/**
+	 * The REST route SLKWoo publishes its keys at.
+	 *
+	 * @return string
+	 */
+	protected static function feed_route() {
+		/**
+		 * Filters the SLKWoo token feed route.
+		 *
+		 * @param string $route Route, without the /wp-json prefix.
+		 */
+		return (string) apply_filters( 'datachat_license_feed_route', 'rf/slk-woo-open-key_api/token' );
 	}
 
 	/**
@@ -1069,7 +1140,115 @@ class DataChat_Licence_Endpoint {
 		 *
 		 * @param string $url Feed URL.
 		 */
-		return (string) apply_filters( 'datachat_license_feed_url', rest_url( 'rf/slk-woo-open-key_api/token' ) );
+		return (string) apply_filters( 'datachat_license_feed_url', rest_url( self::feed_route() ) );
+	}
+
+	/**
+	 * Keep this shop's own licence keys out of the public feed.
+	 *
+	 * SLKWoo publishes newly issued keys, encrypted, to anyone who asks, and the
+	 * passphrase is shared by every plugin that reads it - so a key in that feed
+	 * is a key somebody else can decrypt. For a product whose licences are
+	 * checked here instead, publishing them buys nothing and costs a seat: a
+	 * watcher can claim the site before the customer has installed anything.
+	 *
+	 * So those entries are removed on the way out. Other products are untouched,
+	 * which is the point: a plugin that still reads this feed for its own keys
+	 * carries on working, and its customers notice nothing.
+	 *
+	 * Nothing is hidden until DATACHAT_PRODUCT_IDS says which products to hide.
+	 *
+	 * @param mixed           $response Response object.
+	 * @param mixed           $server   REST server.
+	 * @param WP_REST_Request $request  Request.
+	 * @return mixed
+	 */
+	public static function hide_own_keys( $response, $server = null, $request = null ) {
+		// Our own in-process read, which has to see everything.
+		if ( self::$own_read ) {
+			return $response;
+		}
+
+		if ( ! $request instanceof WP_REST_Request || ! $response ) {
+			return $response;
+		}
+
+		$route = (string) $request->get_route();
+
+		if ( '/' . ltrim( self::feed_route(), '/' ) !== $route ) {
+			return $response;
+		}
+
+		$products = self::own_products();
+
+		if ( empty( $products ) ) {
+			return $response;
+		}
+
+		$response->set_data( self::without_products( $response->get_data(), $products ) );
+
+		return $response;
+	}
+
+	/**
+	 * The same feed, without the entries for these products.
+	 *
+	 * @param mixed $data     Feed data.
+	 * @param array $products Product ids to drop.
+	 * @return mixed
+	 */
+	protected static function without_products( $data, array $products ) {
+		if ( ! is_array( $data ) ) {
+			return $data;
+		}
+
+		// A wrapper around the list, rather than the list itself.
+		if ( ! isset( $data[0] ) ) {
+			foreach ( array( 'data', 'tokens', 'keys', 'result' ) as $wrapper ) {
+				if ( isset( $data[ $wrapper ] ) && is_array( $data[ $wrapper ] ) ) {
+					$data[ $wrapper ] = self::without_products( $data[ $wrapper ], $products );
+
+					return $data;
+				}
+			}
+
+			return $data;
+		}
+
+		$kept = array();
+
+		foreach ( $data as $entry ) {
+			if ( is_array( $entry ) && isset( $entry['product_id'] ) && in_array( (string) $entry['product_id'], $products, true ) ) {
+				continue;
+			}
+
+			$kept[] = $entry;
+		}
+
+		return array_values( $kept );
+	}
+
+	/**
+	 * The shop's own products, whose keys are checked here rather than read
+	 * from the feed by the plugin itself.
+	 *
+	 * @return array List of ids, as strings.
+	 */
+	protected static function own_products() {
+		$products = defined( 'DATACHAT_PRODUCT_IDS' ) ? (string) DATACHAT_PRODUCT_IDS : (string) get_option( 'datachat_product_ids', '' );
+
+		/**
+		 * Filters which products are kept out of the public feed.
+		 *
+		 * @param string $products Comma-separated product ids.
+		 */
+		$products = (string) apply_filters( 'datachat_license_own_products', $products );
+
+		if ( '' === trim( $products ) ) {
+			return array();
+		}
+
+		return array_values( array_filter( array_map( 'trim', explode( ',', $products ) ) ) );
 	}
 
 	/**

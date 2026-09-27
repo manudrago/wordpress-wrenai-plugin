@@ -68,10 +68,32 @@ dominio?" e firma la risposta.
        return '5461' === ( $found['product_id'] ?? '' ) ? 5 : $seats;
    }, 10, 3 );
    ```
-5. Per capire dove SLKWoo salva le chiavi su questo negozio, da loggato:
+5. **Tieni le chiavi DataChat fuori dal feed pubblico.** Il feed di SLKWoo è
+   leggibile da chiunque e la passphrase è condivisa da tutti i plugin che lo
+   usano — quindi una chiave lì dentro è una chiave che altri possono decifrare.
+   Per DataChat non serve pubblicarla, perché la validazione passa da qui; e
+   pubblicarla costa un posto, perché chi guarda il feed può prendersi il sito
+   prima che il cliente installi.
+
+   In `wp-config.php`, gli ID dei prodotti DataChat:
+
+   ```php
+   define( 'DATACHAT_PRODUCT_IDS', '5461,5462' );
+   ```
+
+   Da quel momento quelle entry non compaiono più nel feed. **Gli altri prodotti
+   restano** — il plugin Qomon continua a leggere le sue chiavi e i suoi clienti
+   non si accorgono di niente. L'endpoint invece le vede ancora, perché legge il
+   feed dall'interno di WordPress e non via HTTP: un `rest_do_request`, non una
+   richiesta che passa dalla rete. Quel canale non è aggirabile da fuori, perché
+   non è un header né un parametro.
+
+   Finché la costante non c'è, non viene nascosto niente.
+6. Per capire dove SLKWoo salva le chiavi su questo negozio, da loggato:
    `/wp-json/datachat/v1/license/probe?key=UNA-CHIAVE-VERA`. Dice dove l'ha
    trovata, se la passphrase c'è, se il feed è leggibile e su quali siti la
-   licenza risulta attiva — senza stampare nessuna chiave.
+   licenza risulta attiva, e quali prodotti sta nascondendo dal feed — senza
+   stampare nessuna chiave.
 
 ---
 
