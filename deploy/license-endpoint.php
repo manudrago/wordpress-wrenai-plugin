@@ -544,9 +544,10 @@ class DataChat_Licence_Endpoint {
 			}
 
 			return array(
-				'order_id' => isset( $entry['order_id'] ) ? (int) $entry['order_id'] : 0,
-				'where'    => 'slkwoo_feed',
-				'expires'  => isset( $entry['expires'] ) ? (string) $entry['expires'] : '',
+				'order_id'   => isset( $entry['order_id'] ) ? (int) $entry['order_id'] : 0,
+				'where'      => 'slkwoo_feed',
+				'expires'    => isset( $entry['expires'] ) ? (string) $entry['expires'] : '',
+				'product_id' => isset( $entry['product_id'] ) ? (string) $entry['product_id'] : '',
 			);
 		}
 
@@ -556,12 +557,16 @@ class DataChat_Licence_Endpoint {
 	/**
 	 * Every key the feed currently carries, decrypted.
 	 *
-	 * The feed's shape is not documented, so this does not assume one: it walks
-	 * whatever JSON comes back, tries to decrypt every string it finds, and
-	 * keeps what comes out legible. A plaintext that is itself JSON is read for
-	 * a key, an order id and an expiry; a bare string is the key.
+	 * SLKWoo publishes a flat list of {product_id, open_key, date_expiry,
+	 * expiry_stamp}, where open_key is the key itself and the rest is in clear.
+	 * That shape is read first, because it is the one that also yields the
+	 * expiry and the product without guessing.
 	 *
-	 * @return array List of {key, order_id, expires}.
+	 * Anything else falls back to walking whatever JSON arrived and trying to
+	 * decrypt every string in it, which is what this did before the shape was
+	 * known - a feed that changes shape then still works, with less detail.
+	 *
+	 * @return array List of {key, order_id, expires, product_id}.
 	 */
 	protected static function feed_keys() {
 		$raw = self::feed();
@@ -576,7 +581,11 @@ class DataChat_Licence_Endpoint {
 			return array();
 		}
 
-		$keys = array();
+		$keys = self::slkwoo_entries( $raw, $passphrase );
+
+		if ( ! empty( $keys ) ) {
+			return $keys;
+		}
 
 		foreach ( self::encrypted_strings( $raw ) as $candidate ) {
 			$plain = self::decrypt( $candidate, $passphrase );
@@ -601,6 +610,63 @@ class DataChat_Licence_Endpoint {
 					$keys[] = array( 'key' => $piece, 'order_id' => 0, 'expires' => '' );
 				}
 			}
+		}
+
+		return $keys;
+	}
+
+	/**
+	 * Keys out of SLKWoo's own shape.
+	 *
+	 * @param mixed  $raw        Decoded feed.
+	 * @param string $passphrase Shared passphrase.
+	 * @return array
+	 */
+	protected static function slkwoo_entries( $raw, $passphrase ) {
+		if ( ! is_array( $raw ) ) {
+			return array();
+		}
+
+		// Either the list itself, or a list under a wrapper.
+		$list = $raw;
+
+		if ( ! isset( $raw[0] ) ) {
+			foreach ( array( 'data', 'tokens', 'keys', 'result' ) as $wrapper ) {
+				if ( isset( $raw[ $wrapper ] ) && is_array( $raw[ $wrapper ] ) ) {
+					$list = $raw[ $wrapper ];
+
+					break;
+				}
+			}
+		}
+
+		$keys = array();
+
+		foreach ( $list as $entry ) {
+			if ( ! is_array( $entry ) || empty( $entry['open_key'] ) || ! is_string( $entry['open_key'] ) ) {
+				continue;
+			}
+
+			$plain = self::decrypt( $entry['open_key'], $passphrase );
+
+			if ( '' === $plain ) {
+				continue;
+			}
+
+			$expires = '';
+
+			if ( ! empty( $entry['date_expiry'] ) && is_string( $entry['date_expiry'] ) ) {
+				$expires = $entry['date_expiry'];
+			} elseif ( ! empty( $entry['expiry_stamp'] ) && is_numeric( $entry['expiry_stamp'] ) ) {
+				$expires = gmdate( 'Y-m-d', (int) $entry['expiry_stamp'] );
+			}
+
+			$keys[] = array(
+				'key'        => $plain,
+				'order_id'   => 0,
+				'expires'    => $expires,
+				'product_id' => isset( $entry['product_id'] ) ? (string) $entry['product_id'] : '',
+			);
 		}
 
 		return $keys;
@@ -693,11 +759,11 @@ class DataChat_Licence_Endpoint {
 	/**
 	 * Undo SLKWoo's encryption.
 	 *
-	 * The odd fifth argument is deliberate. SLKWoo documents decryption as
+	 * The odd IV is deliberate. SLKWoo documents decryption as
 	 * openssl_decrypt( $data, 'aes-256-cfb', $pass, 0, openssl_cipher_iv_length( 'aes-256-cfb' ) ),
 	 * which passes the integer 16 where an IV belongs; PHP reads it as the
-	 * string "16" and pads it with nulls. That is what encrypted the feed, so
-	 * that is what has to decrypt it - hence the warning this silences.
+	 * string "16" and pads it with nulls to length. That is what encrypted the
+	 * feed, so that is what has to decrypt it.
 	 *
 	 * @param string $data       Ciphertext.
 	 * @param string $passphrase Shared passphrase.
@@ -708,7 +774,11 @@ class DataChat_Licence_Endpoint {
 			return '';
 		}
 
-		$plain = @openssl_decrypt( $data, self::CIPHER, $passphrase, 0, openssl_cipher_iv_length( self::CIPHER ) ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		// Base64 in, raw out, with the IV spelled out rather than left to PHP's
+		// cast of the integer: the two are byte for byte the same thing, and
+		// this form is the one proven against the live feed.
+		$length = openssl_cipher_iv_length( self::CIPHER );
+		$plain  = openssl_decrypt( (string) base64_decode( $data ), self::CIPHER, $passphrase, OPENSSL_RAW_DATA, str_pad( (string) $length, $length, "\0" ) );
 
 		if ( ! is_string( $plain ) ) {
 			return '';

@@ -250,12 +250,22 @@ check( 'and a key too short to be one is ignored', 1 === count( $entries ) );
 // Looking a key up in the feed
 // ---------------------------------------------------------------------------
 
+// SLKWoo's own shape, as the live feed serves it: the key encrypted under
+// open_key, everything around it in clear.
 WWD_Test_HTTP::reset();
 WWD_Test_HTTP::$raw = wp_json_encode(
 	array(
-		'data' => array(
-			array( 'encrypt_data' => slkwoo_encrypt( wp_json_encode( array( 'license_key' => 'DCAI-PRO-1111-AAAA', 'order_id' => 77, 'expiry' => '2028-06-30' ) ), $passphrase ) ),
-			array( 'encrypt_data' => slkwoo_encrypt( 'DCAI-PRO-2222-BBBB', $passphrase ) ),
+		array(
+			'product_id'   => 5461,
+			'open_key'     => slkwoo_encrypt( 'DCAI-PRO-1111-AAAA', $passphrase ),
+			'date_expiry'  => '2028-06-30',
+			'expiry_stamp' => 1845000000,
+		),
+		array(
+			'product_id'   => 5462,
+			'open_key'     => slkwoo_encrypt( 'DCAI-PRO-2222-BBBB', $passphrase ),
+			'date_expiry'  => '',
+			'expiry_stamp' => 1845000000,
 		),
 	)
 );
@@ -264,10 +274,12 @@ $hit = Shop_Probe::call( 'from_feed', array( 'DCAI-PRO-1111-AAAA' ) );
 
 check( 'a key in the feed is found', is_array( $hit ), wp_json_encode( $hit ) );
 check( 'and named as coming from the feed', 'slkwoo_feed' === $hit['where'] );
-check( 'with the order it belongs to', 77 === $hit['order_id'] );
+check( 'with the product it was sold as', '5461' === $hit['product_id'], wp_json_encode( $hit ) );
 check( 'and the date it runs out', '2028-06-30' === $hit['expires'] );
 
-check( 'a bare key in the feed is found too', is_array( Shop_Probe::call( 'from_feed', array( 'DCAI-PRO-2222-BBBB' ) ) ) );
+$stamped = Shop_Probe::call( 'from_feed', array( 'DCAI-PRO-2222-BBBB' ) );
+
+check( 'an entry with only a timestamp still gives a date', is_array( $stamped ) && '2028-06-19' === $stamped['expires'], wp_json_encode( $stamped ) );
 check( 'a key that is not in the feed is not', null === Shop_Probe::call( 'from_feed', array( 'DCAI-PRO-9999-ZZZZ' ) ) );
 check( 'and something too short to be a key is refused outright', null === Shop_Probe::call( 'from_feed', array( 'AAA' ) ) );
 
@@ -353,8 +365,10 @@ function wc_get_order( $order_id ) {
 
 $feed_body = wp_json_encode(
 	array(
-		'data' => array(
-			array( 'encrypt_data' => slkwoo_encrypt( wp_json_encode( array( 'license_key' => 'DCAI-PRO-1111-AAAA', 'order_id' => 0, 'expiry' => '2029-01-01' ) ), $passphrase ) ),
+		array(
+			'product_id'  => 5461,
+			'open_key'    => slkwoo_encrypt( 'DCAI-PRO-1111-AAAA', $passphrase ),
+			'date_expiry' => '2029-01-01',
 		),
 	)
 );
