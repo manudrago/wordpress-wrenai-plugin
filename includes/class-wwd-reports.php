@@ -485,7 +485,7 @@ class WWD_Reports {
 		$out .= '<input type="text" class="large-text" name="recipients" value="' . esc_attr( implode( ', ', $report['recipients'] ) ) . '" placeholder="' . esc_attr( (string) get_option( 'admin_email' ) ) . '"' . $disabled . '></label></p>';
 
 		$out .= '<p><button class="button button-primary"' . $disabled . '>' . esc_html__( 'Save', 'datachat-ai' ) . '</button> ';
-		$out .= '<button class="button" name="send_now" value="1" formaction="' . esc_url( admin_url( 'admin-post.php?action=wwd_report_send' ) ) . '"' . $disabled . '>' . esc_html__( 'Send a test to me now', 'datachat-ai' ) . '</button></p>';
+		$out .= '<button class="button" name="send_now" value="1"' . $disabled . '>' . esc_html__( 'Send a test to me now', 'datachat-ai' ) . '</button></p>';
 
 		if ( $report['last_sent'] ) {
 			$out .= '<p class="description">' . esc_html(
@@ -527,7 +527,15 @@ class WWD_Reports {
 			)
 		);
 
-		wp_safe_redirect( admin_url( 'admin.php?page=wwd-boards&board=' . $board . '&wwd_report=saved' ) );
+		$flag = 'saved';
+
+		// "Send a test to me now" saves first, so the test shows what was just set.
+		if ( ! empty( $_POST['send_now'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			$user = wp_get_current_user();
+			$flag = true === self::send( $board, array( $user->user_email ) ) ? 'sent' : 'failed';
+		}
+
+		wp_safe_redirect( admin_url( 'admin.php?page=wwd-boards&board=' . $board . '&wwd_report=' . $flag ) );
 		exit;
 	}
 
