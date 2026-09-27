@@ -201,7 +201,10 @@ class WWD_Admin {
 		$notice = 'license';
 
 		if ( 'deactivate' === $action ) {
-			WWD_License::deactivate();
+			// The key goes either way; the notice says whether the shop has
+			// been told, because until it is, the licence cannot be used on
+			// another site.
+			$notice = WWD_License::deactivate() ? 'license-removed' : 'license-removed-offline';
 		} else {
 			$key    = isset( $_POST['license_key'] ) ? sanitize_text_field( wp_unslash( $_POST['license_key'] ) ) : '';
 			$result = WWD_License::activate( $key );

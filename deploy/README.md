@@ -53,10 +53,25 @@ dominio?" e firma la risposta.
    La chiave **privata** resta nel database del negozio e non esce mai. Quella
    pubblica sta in chiaro dentro il plugin: serve solo a verificare una firma,
    non a produrla.
-4. Per capire dove SLKWoo salva le chiavi su questo negozio, da loggato:
+4. **Una licenza, un sito.** È il default, non c'è niente da configurare. Il
+   negozio registra il dominio di ogni controllo; il secondo sito viene
+   rifiutato e gli viene detto quale sito ha la licenza. Il cliente la sposta da
+   solo con "Rimuovi da questo sito", che libera il posto; e un sito che smette
+   di farsi vedere per sessanta giorni lo libera da sé, così un'installazione
+   abbandonata non blocca mai una licenza.
+
+   Per vendere una licenza multi-sito, nel `functions.php` del negozio:
+
+   ```php
+   add_filter( 'datachat_license_seats', function ( $seats, $key, $found ) {
+       // Il product_id arriva dal feed SLKWoo.
+       return '5461' === ( $found['product_id'] ?? '' ) ? 5 : $seats;
+   }, 10, 3 );
+   ```
+5. Per capire dove SLKWoo salva le chiavi su questo negozio, da loggato:
    `/wp-json/datachat/v1/license/probe?key=UNA-CHIAVE-VERA`. Dice dove l'ha
-   trovata, se la passphrase c'è e se il feed è leggibile — senza stampare
-   nessuna chiave.
+   trovata, se la passphrase c'è, se il feed è leggibile e su quali siti la
+   licenza risulta attiva — senza stampare nessuna chiave.
 
 ---
 

@@ -168,10 +168,60 @@ check( 'with the reason kept', 'Refunded' === WWD_License::state()['message'] );
 
 shop_says( array( 'status' => 'valid' ) );
 WWD_License::activate( 'KEY-1234' );
-WWD_License::deactivate();
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$response = array( 'released' => true );
+
+$removed = WWD_License::deactivate();
 
 check( 'removing the key locks the paid features', ! WWD_License::is_valid() );
 check( 'and forgets it', '' === WWD_License::state()['key'] );
+check( 'the shop is told, so the licence can move', 'https://shop.example/licence/release' === WWD_Test_HTTP::$last['url'], WWD_Test_HTTP::$last['url'] );
+check( 'with the key and the site to free', 'KEY-1234' === WWD_Test_HTTP::$last['body']['license_key'] && 'shop.example' === WWD_Test_HTTP::$last['body']['domain'] );
+check( 'and it says the seat came back', true === $removed );
+
+// A shop that cannot be reached must not trap the licence here.
+shop_says( array( 'status' => 'valid' ) );
+WWD_License::activate( 'KEY-1234' );
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$status = 500;
+
+$offline = WWD_License::deactivate();
+
+check( 'a shop that is down does not stop the key being removed', '' === WWD_License::state()['key'] );
+check( 'but it says the seat was not confirmed free', false === $offline );
+
+// ---------------------------------------------------------------------------
+// One licence, one site
+// ---------------------------------------------------------------------------
+
+shop_says(
+	array(
+		'status' => 'valid',
+		'seats'  => array( 'limit' => 1, 'used' => 1, 'sites' => array( 'shop.example' ) ),
+	)
+);
+
+WWD_License::activate( 'KEY-1234' );
+
+check( 'the seat count is kept', 1 === WWD_License::state()['seats']['limit'] );
+check( 'and the settings screen says where the licence is', false !== strpos( WWD_License::summary(), 'In use on 1 of 1 sites' ), WWD_License::summary() );
+
+shop_says(
+	array(
+		'status'  => 'invalid',
+		'message' => 'This licence is for 1 site and is already in use on other-site.example.',
+		'seats'   => array( 'limit' => 1, 'used' => 1, 'sites' => array( 'other-site.example' ) ),
+	)
+);
+
+$taken = WWD_License::activate( 'KEY-1234' );
+
+check( 'a key already used elsewhere is refused', is_wp_error( $taken ) );
+check( 'and the other site is named', false !== strpos( $taken->get_error_message(), 'other-site.example' ) );
+check( 'and remembered for the screen', array( 'other-site.example' ) === WWD_License::state()['seats']['sites'] );
+check( 'and nothing is unlocked', ! WWD_License::is_valid() );
 
 // ---------------------------------------------------------------------------
 // Answers worded in other ways

@@ -19,6 +19,10 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Licence updated.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( 'license-failed' === $updated ) : ?>
 		<div class="notice notice-error is-dismissible"><p><?php echo esc_html( WWD_License::summary() ); ?></p></div>
+	<?php elseif ( 'license-removed' === $updated ) : ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Licence removed from this site. It is free to use on another one.', 'datachat-ai' ); ?></p></div>
+	<?php elseif ( 'license-removed-offline' === $updated ) : ?>
+		<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'Licence removed from this site, but the shop could not be reached to say so - until it notices, the key may still count as in use here. Try again from the other site, or ask us to free it.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( 'cache' === $updated ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Cached results cleared.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( $updated ) : ?>
@@ -89,6 +93,18 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 			<p class="wwd-status <?php echo WWD_License::is_valid() ? 'is-ok' : 'is-warn'; ?>">
 				<?php echo esc_html( WWD_License::summary() ); ?>
 			</p>
+
+			<?php if ( ! empty( $wwd_license['seats']['sites'] ) && ! WWD_License::is_valid() ) : ?>
+				<p class="description">
+					<?php
+					printf(
+						/* translators: %s: list of domains. */
+						esc_html__( 'The shop has this licence on: %s', 'datachat-ai' ),
+						esc_html( implode( ', ', array_map( 'sanitize_text_field', (array) $wwd_license['seats']['sites'] ) ) )
+					);
+					?>
+				</p>
+			<?php endif; ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="wwd_license">

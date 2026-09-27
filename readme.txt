@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.2.0
+Stable tag: 2.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,16 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.3.0 =
+* One licence, one site. The shop records the domain behind every check, refuses a second one and
+  names the site already holding the licence, so a key bought once cannot run a dozen
+  installations. A shop that sells wider licences can raise the count per product.
+* Moving a licence needs no support ticket: "Remove from this site" now tells the shop to free the
+  seat, and says plainly when it could not be reached. A site that stops checking in for sixty
+  days gives its seat back on its own, so an abandoned install never traps a licence.
+* The licence screen says how many of the sites a licence covers are in use, and which site holds
+  it when a key is refused for being in use elsewhere.
 
 = 2.2.0 =
 * Licence answers are signed. The shop keeps an RSA key, generated on first use, and signs what

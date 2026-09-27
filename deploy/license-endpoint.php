@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name:       DataChat Licence Endpoint
- * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.1.0
+ * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -22,6 +22,12 @@
  * holds only what has not expired yet - is looked up in the order it was sold
  * with. Either way the answer that goes back is yes, no or expired. No key ever
  * leaves this server.
+ *
+ * One licence covers one site. That too can only be counted here, because only
+ * the shop sees every site a key is used on: each answer records the domain
+ * that asked, a second domain is refused and told which site to free, and
+ * /license/release gives a seat back so a customer can move without writing in.
+ * A site that stops checking in for sixty days gives its seat back by itself.
  *
  * And the answer is signed. Without that, the endpoint is only as trustworthy
  * as the network in front of it: anything able to answer at that URL can say
@@ -58,6 +64,25 @@ class DataChat_Licence_Endpoint {
 	 * Where the RSA pair lives once generated.
 	 */
 	const KEYS = 'datachat_licence_keys';
+
+	/**
+	 * Where the sites each key is in use on are recorded.
+	 */
+	const SITES = 'datachat_licence_sites';
+
+	/**
+	 * How many sites one key runs on, unless a shop says otherwise.
+	 */
+	const SEATS = 1;
+
+	/**
+	 * How long a site can go unseen before its seat is given back.
+	 *
+	 * A customer who abandons a site without deactivating would otherwise hold
+	 * a seat forever and have to write in. The plugin re-checks daily, so sixty
+	 * days of silence means the site is gone.
+	 */
+	const STALE = 60 * DAY_IN_SECONDS;
 
 	/**
 	 * What SLKWoo encrypts its feed with.
@@ -115,6 +140,23 @@ class DataChat_Licence_Endpoint {
 					'domain'      => array( 'type' => 'string' ),
 					'product'     => array( 'type' => 'string' ),
 					'nonce'       => array( 'type' => 'string' ),
+				),
+			)
+		);
+
+		// Gives a site's seat back, so a customer can move the licence without
+		// writing in. Public like the check above: the key is the secret.
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/license/release',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'release' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'license_key' => array( 'type' => 'string' ),
+					'key'         => array( 'type' => 'string' ),
+					'domain'      => array( 'type' => 'string' ),
 				),
 			)
 		);
@@ -250,9 +292,15 @@ class DataChat_Licence_Endpoint {
 			$answer
 		);
 
+		// One licence, one site. Counted here, because here is the only place
+		// that can see every site a key is used on.
+		if ( 'valid' === $answer['status'] && '' !== $key ) {
+			$answer = self::gate_seats( $answer, $key, $domain, $found );
+		}
+
 		/**
-		 * Filters the answer, for a shop with rules of its own - a seat count,
-		 * a domain allow-list, a grace period after a refund.
+		 * Filters the answer, for a shop with rules of its own - a domain
+		 * allow-list, a grace period after a refund, a seat decision of its own.
 		 *
 		 * @param array  $answer Status, expiry and message.
 		 * @param string $key    Licence key.
@@ -279,6 +327,189 @@ class DataChat_Licence_Endpoint {
 		}
 
 		return new WP_REST_Response( $answer, 200 );
+	}
+
+	/**
+	 * Let this site have the licence, or say who already has it.
+	 *
+	 * @param array  $answer Answer so far, known valid.
+	 * @param string $key    Licence key.
+	 * @param string $domain Domain asking.
+	 * @param array  $found  Where the key was found.
+	 * @return array
+	 */
+	protected static function gate_seats( array $answer, $key, $domain, array $found ) {
+		$site = self::normalise( $domain );
+
+		// Nothing to count against. Allowing it is the lesser evil: refusing
+		// would lock out a site whose home_url() this cannot parse.
+		if ( '' === $site ) {
+			return $answer;
+		}
+
+		$seats = self::seats_for( $key, $found );
+		$all   = self::sites();
+		$slot  = hash( 'sha256', $key );
+		$taken = isset( $all[ $slot ] ) && is_array( $all[ $slot ] ) ? $all[ $slot ] : array();
+		$now   = time();
+
+		// A site that has not checked in for long enough has gone away.
+		foreach ( $taken as $known => $seen ) {
+			if ( ! is_array( $seen ) || ( $now - (int) ( isset( $seen['last'] ) ? $seen['last'] : 0 ) ) > self::STALE ) {
+				unset( $taken[ $known ] );
+			}
+		}
+
+		$known = isset( $taken[ $site ] );
+
+		if ( ! $known && count( $taken ) >= $seats ) {
+			$answer['status']  = 'invalid';
+			$answer['expires'] = '';
+			$answer['message'] = sprintf(
+				/* One site, named, so the customer knows what to turn off. */
+				'This licence is for %1$d site and is already in use on %2$s. Remove it there first - the licence screen has a button for that - or ask us to free it.',
+				$seats,
+				implode( ', ', array_keys( $taken ) )
+			);
+			$answer['seats'] = array(
+				'limit' => $seats,
+				'used'  => count( $taken ),
+				'sites' => array_keys( $taken ),
+			);
+
+			// Whatever was there stays there; this site simply does not join.
+			self::remember_sites( $slot, $taken );
+
+			return $answer;
+		}
+
+		$taken[ $site ] = array(
+			'first' => $known && isset( $taken[ $site ]['first'] ) ? (int) $taken[ $site ]['first'] : $now,
+			'last'  => $now,
+		);
+
+		self::remember_sites( $slot, $taken );
+
+		$answer['seats'] = array(
+			'limit' => $seats,
+			'used'  => count( $taken ),
+			'sites' => array_keys( $taken ),
+		);
+
+		return $answer;
+	}
+
+	/**
+	 * Give a site's seat back.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function release( WP_REST_Request $request ) {
+		if ( ! self::allowed() ) {
+			return new WP_REST_Response( array( 'released' => false, 'message' => 'Too many requests from this address.' ), 429 );
+		}
+
+		$key  = trim( (string) ( $request->get_param( 'license_key' ) ? $request->get_param( 'license_key' ) : $request->get_param( 'key' ) ) );
+		$site = self::normalise( (string) $request->get_param( 'domain' ) );
+
+		if ( '' === $key || '' === $site ) {
+			return new WP_REST_Response( array( 'released' => false, 'message' => 'A key and a domain are both needed.' ), 200 );
+		}
+
+		$all  = self::sites();
+		$slot = hash( 'sha256', $key );
+
+		if ( ! isset( $all[ $slot ][ $site ] ) ) {
+			// Nothing held, which is the state the caller wanted anyway.
+			return new WP_REST_Response( array( 'released' => true ), 200 );
+		}
+
+		$taken = $all[ $slot ];
+
+		unset( $taken[ $site ] );
+
+		self::remember_sites( $slot, $taken );
+
+		return new WP_REST_Response( array( 'released' => true, 'used' => count( $taken ) ), 200 );
+	}
+
+	/**
+	 * How many sites this key covers.
+	 *
+	 * @param string $key   Licence key.
+	 * @param array  $found Where it was found.
+	 * @return int
+	 */
+	protected static function seats_for( $key, array $found ) {
+		/**
+		 * Filters the number of sites one key runs on - by product, say, so an
+		 * Agency licence covers more than one.
+		 *
+		 * @param int    $seats Seats.
+		 * @param string $key   Licence key.
+		 * @param array  $found Where the key was found, product_id included.
+		 */
+		$seats = (int) apply_filters( 'datachat_license_seats', self::SEATS, $key, $found );
+
+		return $seats > 0 ? $seats : 1;
+	}
+
+	/**
+	 * Every key's sites. Keys are stored hashed: this option is not a list of
+	 * licence keys, and a leak of it hands nobody a working one.
+	 *
+	 * @return array
+	 */
+	protected static function sites() {
+		$stored = get_option( self::SITES, array() );
+
+		return is_array( $stored ) ? $stored : array();
+	}
+
+	/**
+	 * Write one key's sites back.
+	 *
+	 * @param string $slot  Hashed key.
+	 * @param array  $taken Sites.
+	 * @return void
+	 */
+	protected static function remember_sites( $slot, array $taken ) {
+		$all = self::sites();
+
+		if ( empty( $taken ) ) {
+			unset( $all[ $slot ] );
+		} else {
+			$all[ $slot ] = $taken;
+		}
+
+		update_option( self::SITES, $all, false );
+	}
+
+	/**
+	 * A domain in the one form everything here compares against.
+	 *
+	 * @param string $domain Domain, or a URL.
+	 * @return string
+	 */
+	protected static function normalise( $domain ) {
+		$domain = strtolower( trim( (string) $domain ) );
+
+		if ( '' === $domain ) {
+			return '';
+		}
+
+		// A URL where a domain was expected.
+		if ( false !== strpos( $domain, '//' ) ) {
+			$host   = wp_parse_url( $domain, PHP_URL_HOST );
+			$domain = is_string( $host ) ? $host : '';
+		}
+
+		$domain = preg_replace( '#[/?].*$#', '', $domain );
+		$domain = preg_replace( '#:\d+$#', '', (string) $domain );
+		$domain = preg_replace( '#^www\.#', '', (string) $domain );
+
+		return (string) $domain;
 	}
 
 	/**
@@ -396,6 +627,10 @@ class DataChat_Licence_Endpoint {
 			'passphrase_set' => '' !== self::passphrase(),
 			'can_sign'       => '' !== self::sign( array( 'status' => 'probe' ) ),
 			'feed'           => self::feed_report(),
+			'seats'          => '' === $key ? null : array(
+				'limit' => self::seats_for( $key, is_array( $found ) ? $found : array() ),
+				'sites' => array_keys( (array) ( self::sites()[ hash( 'sha256', $key ) ] ?? array() ) ),
+			),
 		);
 
 		if ( $found && ! empty( $found['order_id'] ) && function_exists( 'wc_get_order' ) ) {

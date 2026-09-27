@@ -447,6 +447,112 @@ check( 'a refunded order stops being a licence', is_wp_error( $refunded ), is_wp
 check( 'and the shop says why', false !== strpos( (string) $refunded->get_error_message(), 'refunded' ), $refunded->get_error_message() );
 check( 'and it locks', ! WWD_License::is_valid() );
 
+// ---------------------------------------------------------------------------
+// One licence, one site
+// ---------------------------------------------------------------------------
+
+/**
+ * Ask the endpoint about a key, as a site would.
+ *
+ * @param string $key    Licence key.
+ * @param string $domain Domain asking.
+ * @return array
+ */
+function ask_from( $key, $domain ) {
+	return DataChat_Licence_Endpoint::check(
+		new WP_REST_Request(
+			array(
+				'license_key' => $key,
+				'domain'      => $domain,
+				'nonce'       => 'nonce-' . md5( $domain . microtime() ),
+			)
+		)
+	)->get_data();
+}
+
+// A key the shop can place, so only the seat count is under test.
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 0, 'where' => 'slkwoo_feed', 'expires' => '' ) );
+
+delete_option( DataChat_Licence_Endpoint::SITES );
+
+$first = ask_from( 'DCAI-SEAT-0001', 'first-site.example' );
+
+check( 'the first site gets the licence', 'valid' === $first['status'], wp_json_encode( $first ) );
+check( 'and is told it is one site of one', 1 === $first['seats']['limit'] && 1 === $first['seats']['used'], wp_json_encode( $first['seats'] ) );
+
+$again = ask_from( 'DCAI-SEAT-0001', 'first-site.example' );
+
+check( 'the same site checking in again is still fine', 'valid' === $again['status'] );
+check( 'and does not take a second seat', 1 === $again['seats']['used'] );
+
+check( 'nor does the same site with a www', 'valid' === ask_from( 'DCAI-SEAT-0001', 'www.first-site.example' )['status'] );
+check( 'nor spelled as a URL', 'valid' === ask_from( 'DCAI-SEAT-0001', 'https://first-site.example/' )['status'] );
+check( 'nor in capitals', 'valid' === ask_from( 'DCAI-SEAT-0001', 'First-Site.Example' )['status'] );
+
+$second = ask_from( 'DCAI-SEAT-0001', 'second-site.example' );
+
+check( 'a second site is refused', 'invalid' === $second['status'], wp_json_encode( $second ) );
+check( 'and told which site has it', false !== strpos( $second['message'], 'first-site.example' ), $second['message'] );
+check( 'and told how to free it', false !== strpos( $second['message'], 'Remove it there first' ), $second['message'] );
+check( 'a refusal carries no expiry to lean on', '' === $second['expires'] );
+check( 'and the refusal is signed like any other answer', ! empty( $second['signature'] ) );
+
+check( 'the first site still has it', 'valid' === ask_from( 'DCAI-SEAT-0001', 'first-site.example' )['status'] );
+
+// Another key is another licence.
+check( 'a different key is unaffected', 'valid' === ask_from( 'DCAI-SEAT-0002', 'second-site.example' )['status'] );
+
+// ---------------------------------------------------------------------------
+// Moving the licence
+// ---------------------------------------------------------------------------
+
+$released = DataChat_Licence_Endpoint::release(
+	new WP_REST_Request( array( 'license_key' => 'DCAI-SEAT-0001', 'domain' => 'first-site.example' ) )
+)->get_data();
+
+check( 'the first site can give its seat back', ! empty( $released['released'] ) );
+check( 'and the second site can then have it', 'valid' === ask_from( 'DCAI-SEAT-0001', 'second-site.example' )['status'] );
+check( 'while the first now has to queue', 'invalid' === ask_from( 'DCAI-SEAT-0001', 'first-site.example' )['status'] );
+
+$twice = DataChat_Licence_Endpoint::release(
+	new WP_REST_Request( array( 'license_key' => 'DCAI-SEAT-0001', 'domain' => 'nobody.example' ) )
+)->get_data();
+
+check( 'releasing a site that holds nothing is not an error', ! empty( $twice['released'] ) );
+
+// A site that stops checking in gives its seat back by itself.
+$stored = get_option( DataChat_Licence_Endpoint::SITES, array() );
+$slot   = hash( 'sha256', 'DCAI-SEAT-0003' );
+
+$stored[ $slot ] = array(
+	'abandoned.example' => array( 'first' => time() - ( 400 * DAY_IN_SECONDS ), 'last' => time() - ( 90 * DAY_IN_SECONDS ) ),
+);
+
+update_option( DataChat_Licence_Endpoint::SITES, $stored, false );
+
+$reclaimed = ask_from( 'DCAI-SEAT-0003', 'new-home.example' );
+
+check( 'a site unseen for months no longer holds the licence', 'valid' === $reclaimed['status'], wp_json_encode( $reclaimed ) );
+check( 'and the abandoned one is forgotten', array( 'new-home.example' ) === $reclaimed['seats']['sites'], wp_json_encode( $reclaimed['seats'] ) );
+
+// Keys are not stored in the clear.
+$raw = wp_json_encode( get_option( DataChat_Licence_Endpoint::SITES, array() ) );
+
+check( 'the record of sites holds no licence key', false === strpos( $raw, 'DCAI-SEAT-000' ), $raw );
+
+// A shop that sells more than one seat can say so.
+add_test_filter( 'datachat_license_seats', 3 );
+
+delete_option( DataChat_Licence_Endpoint::SITES );
+
+ask_from( 'DCAI-SEAT-0004', 'one.example' );
+ask_from( 'DCAI-SEAT-0004', 'two.example' );
+
+$third = ask_from( 'DCAI-SEAT-0004', 'three.example' );
+
+check( 'a shop can sell a key for more sites', 'valid' === $third['status'] && 3 === $third['seats']['used'], wp_json_encode( $third['seats'] ) );
+check( 'and the fourth still waits', 'invalid' === ask_from( 'DCAI-SEAT-0004', 'four.example' )['status'] );
+
 echo "\n{$checks} checks, {$failures} failures\n";
 
 exit( $failures > 0 ? 1 : 0 );

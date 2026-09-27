@@ -73,6 +73,9 @@ class WWD_License {
 				// this plugin does not speak yet can be read by a human.
 				'last_code'    => 0,
 				'last_body'    => '',
+				// How many sites this licence covers, and which ones the shop
+				// has seen it on. Informational: the shop decides, not this.
+				'seats'        => array(),
 			),
 			$stored
 		);
@@ -155,6 +158,7 @@ class WWD_License {
 				'status'     => $answer['status'],
 				'message'    => $answer['message'],
 				'expires'    => $answer['expires'],
+				'seats'      => isset( $answer['seats'] ) ? (array) $answer['seats'] : array(),
 				'checked_at' => time(),
 			)
 		);
@@ -176,12 +180,75 @@ class WWD_License {
 	}
 
 	/**
-	 * Forget the key on this site.
+	 * Forget the key on this site, and give its seat back.
 	 *
-	 * @return void
+	 * A licence covers one site, so moving it has to be possible without
+	 * writing to support. Telling the shop is best effort: if it cannot be
+	 * reached the key still goes from here, and the shop gives the seat back by
+	 * itself once the site has stopped checking in.
+	 *
+	 * @return bool Whether the shop confirmed the seat is free.
 	 */
 	public static function deactivate() {
+		$state    = self::state();
+		$released = false;
+
+		if ( '' !== $state['key'] ) {
+			$released = self::release( $state['key'] );
+		}
+
 		delete_option( self::OPTION );
+
+		return $released;
+	}
+
+	/**
+	 * Ask the shop to stop counting this site against the key.
+	 *
+	 * @param string $key Licence key.
+	 * @return bool
+	 */
+	protected static function release( $key ) {
+		$endpoint = self::endpoint();
+
+		if ( '' === $endpoint ) {
+			return false;
+		}
+
+		/**
+		 * Filters where a seat is given back.
+		 *
+		 * @param string $url      Release URL.
+		 * @param string $endpoint Validation endpoint.
+		 */
+		$url = (string) apply_filters( 'wwd_license_release_endpoint', untrailingslashit( $endpoint ) . '/release', $endpoint );
+
+		$response = wp_remote_post(
+			$url,
+			array(
+				'timeout' => 10,
+				'body'    => array(
+					'license_key' => $key,
+					'key'         => $key,
+					'domain'      => self::domain(),
+					'url'         => home_url(),
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return false;
+		}
+
+		$code = (int) wp_remote_retrieve_response_code( $response );
+
+		if ( $code < 200 || $code >= 300 ) {
+			return false;
+		}
+
+		$data = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+
+		return is_array( $data ) && ! empty( $data['released'] );
 	}
 
 	/**
@@ -221,6 +288,7 @@ class WWD_License {
 		$state['status']  = $answer['status'];
 		$state['message'] = $answer['message'];
 		$state['expires'] = $answer['expires'];
+		$state['seats']   = isset( $answer['seats'] ) ? (array) $answer['seats'] : array();
 
 		if ( 'valid' === $answer['status'] ) {
 			$state['confirmed_at'] = time();
@@ -323,6 +391,7 @@ class WWD_License {
 			'status'  => self::read_status( $data ),
 			'message' => isset( $data['message'] ) ? (string) $data['message'] : '',
 			'expires' => self::read_expiry( $data ),
+			'seats'   => isset( $data['seats'] ) && is_array( $data['seats'] ) ? $data['seats'] : array(),
 		);
 
 		/**
@@ -592,15 +661,24 @@ class WWD_License {
 		}
 
 		if ( self::is_valid() ) {
-			if ( $state['expires'] ) {
-				return sprintf(
+			$sentence = $state['expires']
+				? sprintf(
 					/* translators: %s: expiry date. */
 					__( 'Active until %s.', 'datachat-ai' ),
 					$state['expires']
+				)
+				: __( 'Active.', 'datachat-ai' );
+
+			if ( ! empty( $state['seats']['limit'] ) ) {
+				$sentence .= ' ' . sprintf(
+					/* translators: 1: sites in use, 2: sites the licence covers. */
+					__( 'In use on %1$d of %2$d sites.', 'datachat-ai' ),
+					isset( $state['seats']['used'] ) ? (int) $state['seats']['used'] : 1,
+					(int) $state['seats']['limit']
 				);
 			}
 
-			return __( 'Active.', 'datachat-ai' );
+			return $sentence;
 		}
 
 		if ( '' !== $state['message'] ) {
