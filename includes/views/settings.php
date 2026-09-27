@@ -140,7 +140,13 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 					</p>
 					<pre class="wwd-license-raw"><?php echo esc_html( $wwd_license['last_body'] ); ?></pre>
 					<p class="description">
-						<?php esc_html_e( 'Only useful when a key is refused and you do not know why. Send this to support; it holds no password.', 'datachat-ai' ); ?>
+						<?php
+						if ( '' !== WWD_License::public_key() ) {
+							esc_html_e( 'This build only believes answers the shop has signed, so nothing that merely answers at that address can unlock it.', 'datachat-ai' );
+						} else {
+							esc_html_e( 'Only useful when a key is refused and you do not know why. Send this to support; it holds no password.', 'datachat-ai' );
+						}
+						?>
 					</p>
 				</details>
 			<?php endif; ?>

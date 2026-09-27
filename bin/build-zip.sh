@@ -21,6 +21,12 @@
 #
 #   --endpoint U  Where paid builds check licence keys. Defaults to
 #                 $WWD_LICENSE_ENDPOINT, or the placeholder below.
+#
+#   --public-key F  A PEM file holding the shop's public key. A build given one
+#                 trusts only answers the shop has signed with the private half,
+#                 so nothing that merely answers at the endpoint's URL can say
+#                 "valid". Fetch it from the shop:
+#                 curl -s https://SHOP/wp-json/datachat/v1/license/pubkey
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,14 +36,16 @@ EDITION="free"
 SLUG=""
 ALL="no"
 ENDPOINT="${WWD_LICENSE_ENDPOINT:-https://ideagency.co.uk/wp-json/datachat/v1/license}"
+PUBLIC_KEY_FILE="${WWD_LICENSE_PUBLIC_KEY_FILE:-}"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--edition) EDITION="$2"; shift 2 ;;
 		--slug) SLUG="$2"; shift 2 ;;
 		--endpoint) ENDPOINT="$2"; shift 2 ;;
+		--public-key) PUBLIC_KEY_FILE="$2"; shift 2 ;;
 		--all) ALL="yes"; shift ;;
-		-h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+		-h|--help) sed -n '2,33p' "$0"; exit 0 ;;
 		# A bare first argument is the slug, as this script used to take.
 		*) SLUG="$1"; shift ;;
 	esac
@@ -89,6 +97,23 @@ define( 'WWD_EDITION', '${edition}' );
 define( 'WWD_EDITION_LABEL', '${label}' );
 define( 'WWD_LICENSE_ENDPOINT', '${ENDPOINT}' );
 EDITION
+
+		if [[ -n "$PUBLIC_KEY_FILE" ]]; then
+			if [[ ! -f "$PUBLIC_KEY_FILE" ]]; then
+				echo "No such public key file: ${PUBLIC_KEY_FILE}" >&2
+				exit 1
+			fi
+
+			# Readable by anyone who opens the plugin, which costs nothing: the
+			# public half can only check a signature, never make one.
+			# printf rather than cat, so a PEM saved without a trailing newline
+			# still leaves the heredoc terminator on a line of its own.
+			{
+				printf "\ndefine(\n\t'WWD_LICENSE_PUBLIC_KEY',\n\t<<<'PEM'\n"
+				printf '%s\n' "$(cat "$PUBLIC_KEY_FILE")"
+				printf "PEM\n);\n"
+			} >> "${build_dir}/${slug}/edition.php"
+		fi
 
 		# The plugin header carries the edition too, so wp-admin and the
 		# updater can tell two installed copies apart.

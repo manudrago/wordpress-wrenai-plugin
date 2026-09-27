@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.1.2
+Stable tag: 2.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,15 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.2.0 =
+* Licence answers are signed. The shop keeps an RSA key, generated on first use, and signs what
+  it says; a paid build carries only the public half. So a forged answer, an answer flipped in
+  flight, and a real answer captured and played back later are all refused - and none of them can
+  lock a paying site out, because an answer that fails to verify counts as silence, not refusal.
+* The shop reads Simple License Key for WooCommerce's own encrypted feed, where the passphrase can
+  stay on the server instead of shipping inside a GPL plugin. A key that has left the feed is
+  looked up in the order it was sold with, as before.
 
 = 2.1.2 =
 * Licence checks now go to a route on the shop that sold the key, which answers whether that key

@@ -26,6 +26,40 @@ Due decisioni, indipendenti tra loro:
 
 ---
 
+## `license-endpoint.php` — le licenze delle edizioni a pagamento
+
+Questo file **non va sul sito del cliente**: va sul negozio che vende le licenze
+(ideagency.co.uk). Risponde alla domanda "questa chiave è valida per questo
+dominio?" e firma la risposta.
+
+1. Caricalo come plugin sul negozio e attivalo.
+2. Metti la passphrase di SLKWoo in `wp-config.php` — mai in questo file, che è
+   GPL e viene copiato:
+
+   ```php
+   define( 'DATACHAT_SLKWOO_PASSPHRASE', '...' );
+   ```
+
+   Senza passphrase il feed viene ignorato e la chiave si cerca negli ordini.
+3. Prendi la chiave pubblica e costruisci gli archivi a pagamento con quella:
+
+   ```bash
+   curl -s https://ideagency.co.uk/wp-json/datachat/v1/license/pubkey \
+     | python3 -c 'import json,sys; print(json.load(sys.stdin)["public_key"])' > shop-public-key.pem
+
+   ./bin/build-zip.sh --all --public-key shop-public-key.pem
+   ```
+
+   La chiave **privata** resta nel database del negozio e non esce mai. Quella
+   pubblica sta in chiaro dentro il plugin: serve solo a verificare una firma,
+   non a produrla.
+4. Per capire dove SLKWoo salva le chiavi su questo negozio, da loggato:
+   `/wp-json/datachat/v1/license/probe?key=UNA-CHIAVE-VERA`. Dice dove l'ha
+   trovata, se la passphrase c'è e se il feed è leggibile — senza stampare
+   nessuna chiave.
+
+---
+
 ## Il modo più corto: un comando generato da WordPress
 
 **DataChat → Impostazioni → "Collega un server automaticamente"**: incolli la

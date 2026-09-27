@@ -34,6 +34,22 @@ class WWD_License {
 	const GRACE = 14 * DAY_IN_SECONDS;
 
 	/**
+	 * How far out a signed answer's own timestamp may be.
+	 *
+	 * Generous, because the clock that matters is the customer's and plenty of
+	 * them are minutes out. Replay is stopped by the nonce, not by this.
+	 */
+	const SIGNATURE_WINDOW = 2 * DAY_IN_SECONDS;
+
+	/**
+	 * The fields a signature covers, in this order, joined by a pipe.
+	 *
+	 * The shop signs exactly this string. deploy/license-endpoint.php builds it
+	 * the same way; the two have to stay in step, so change neither alone.
+	 */
+	const SIGNED_FIELDS = array( 'status', 'expires', 'domain', 'nonce', 'issued_at' );
+
+	/**
 	 * Stored licence state, with every key present.
 	 *
 	 * @return array
@@ -226,6 +242,10 @@ class WWD_License {
 	 * @return array|WP_Error {status, message, expires}
 	 */
 	protected static function ask_the_shop( $key ) {
+		// Fresh per request, so an answer captured once cannot be replayed to
+		// unlock a second site, or the same site tomorrow.
+		$nonce = wp_generate_uuid4();
+
 		$request = array(
 			'url'  => self::endpoint(),
 			'body' => array(
@@ -237,6 +257,7 @@ class WWD_License {
 				'product'     => 'datachat-ai-' . self::edition(),
 				'domain'      => self::domain(),
 				'url'         => home_url(),
+				'nonce'       => $nonce,
 			),
 		);
 
@@ -322,7 +343,129 @@ class WWD_License {
 			);
 		}
 
+		// The last word, after every filter: a build that carries the shop's
+		// public key trusts nothing the shop did not sign.
+		$signature = self::check_signature( $answer, $data, $nonce );
+
+		if ( is_wp_error( $signature ) ) {
+			return $signature;
+		}
+
 		return $answer;
+	}
+
+	/**
+	 * Whether this answer really came from the shop that sold the key.
+	 *
+	 * Without this, the endpoint is only as trustworthy as the network in
+	 * front of it: anything that can answer at that URL - a hosts file, a
+	 * filter on the site, a proxy - can say "valid". The shop signs its answer
+	 * with a private key that never leaves it, and the public half is baked
+	 * into the build, where being readable costs nothing.
+	 *
+	 * A build with no public key skips all of this, so a shop that does not
+	 * sign still works.
+	 *
+	 * @param array  $answer Status, message and expiry.
+	 * @param array  $data   Decoded body.
+	 * @param string $nonce  The nonce this request sent.
+	 * @return true|WP_Error
+	 */
+	protected static function check_signature( array $answer, array $data, $nonce ) {
+		$public_key = self::public_key();
+
+		if ( '' === $public_key ) {
+			return true;
+		}
+
+		if ( ! function_exists( 'openssl_verify' ) ) {
+			// Refusing here would lock out a site whose PHP is merely thin, so
+			// this is silence: whatever was last confirmed stands.
+			return new WP_Error(
+				'wwd_license_no_openssl',
+				__( 'This licence is signed by the shop, but PHP here has no OpenSSL to check the signature with. Ask your host to enable it.', 'datachat-ai' )
+			);
+		}
+
+		$offered = isset( $data['signature'] ) ? (string) $data['signature'] : '';
+
+		if ( '' === $offered ) {
+			return new WP_Error(
+				'wwd_license_unsigned',
+				__( 'The licence server did not sign its answer. Nothing was changed, because an unsigned answer could have come from anywhere.', 'datachat-ai' )
+			);
+		}
+
+		// Its own nonce, or it is an older answer being played back.
+		if ( ! isset( $data['nonce'] ) || ! hash_equals( (string) $nonce, (string) $data['nonce'] ) ) {
+			return new WP_Error(
+				'wwd_license_replayed',
+				__( 'The licence server answered a different question than the one asked. Nothing was changed.', 'datachat-ai' )
+			);
+		}
+
+		$issued_at = isset( $data['issued_at'] ) ? (string) $data['issued_at'] : '';
+		$stamp     = '' === $issued_at ? 0 : strtotime( $issued_at );
+
+		if ( ! $stamp || abs( time() - $stamp ) > self::SIGNATURE_WINDOW ) {
+			return new WP_Error(
+				'wwd_license_stale',
+				__( 'The licence server\'s answer is not dated within the last two days. Check the clock on this site.', 'datachat-ai' )
+			);
+		}
+
+		$signed = self::signed_message(
+			array(
+				'status'    => $answer['status'],
+				'expires'   => $answer['expires'],
+				'domain'    => self::domain(),
+				'nonce'     => (string) $nonce,
+				'issued_at' => $issued_at,
+			)
+		);
+
+		$verified = openssl_verify( $signed, (string) base64_decode( $offered, true ), $public_key, OPENSSL_ALGO_SHA256 );
+
+		if ( 1 !== $verified ) {
+			return new WP_Error(
+				'wwd_license_forged',
+				__( 'The licence server\'s signature did not match its answer. Nothing was changed. If you are pointing this at your own endpoint, it has to sign what it says.', 'datachat-ai' )
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * The exact string a signature covers.
+	 *
+	 * @param array $parts Values by field name.
+	 * @return string
+	 */
+	protected static function signed_message( array $parts ) {
+		$ordered = array();
+
+		foreach ( self::SIGNED_FIELDS as $field ) {
+			$ordered[] = isset( $parts[ $field ] ) ? (string) $parts[ $field ] : '';
+		}
+
+		return implode( '|', $ordered );
+	}
+
+	/**
+	 * The shop's public key, baked into a signing build.
+	 *
+	 * @return string PEM, or empty when this build does not expect signatures.
+	 */
+	public static function public_key() {
+		$key = defined( 'WWD_LICENSE_PUBLIC_KEY' ) ? (string) WWD_LICENSE_PUBLIC_KEY : '';
+
+		/**
+		 * Filters the public key answers are checked against.
+		 *
+		 * @param string $key PEM.
+		 */
+		return trim( (string) apply_filters( 'wwd_license_public_key', $key ) );
 	}
 
 	/**

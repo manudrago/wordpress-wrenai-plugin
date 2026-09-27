@@ -332,11 +332,34 @@ class WWD_Test_HTTP {
 	}
 
 	/**
+	 * Answers the request instead of a canned body, when a test needs to see
+	 * what was asked before deciding - a signature over the nonce that was
+	 * sent, for one.
+	 *
+	 * Receives the recorded request, returns a partial answer.
+	 *
+	 * @var callable|null
+	 */
+	public static $responder = null;
+
+	/**
 	 * The answer for this request.
 	 *
+	 * @param array $request The request being answered.
 	 * @return array
 	 */
-	public static function next() {
+	public static function next( array $request = array() ) {
+		if ( is_callable( self::$responder ) ) {
+			return array_merge(
+				array(
+					'status'   => 200,
+					'response' => array(),
+					'raw'      => null,
+				),
+				(array) call_user_func( self::$responder, $request )
+			);
+		}
+
 		if ( ! empty( self::$queue ) ) {
 			return array_shift( self::$queue );
 		}
@@ -358,8 +381,9 @@ class WWD_Test_HTTP {
 		self::$requests = array();
 		self::$queue    = array();
 		self::$response = array( 'query_id' => 'test-query' );
-		self::$status   = 200;
-		self::$raw      = null;
+		self::$status    = 200;
+		self::$raw       = null;
+		self::$responder = null;
 	}
 }
 
@@ -384,7 +408,7 @@ function wp_remote_request( $url, $args = array() ) {
 
 	WWD_Test_HTTP::$requests[] = WWD_Test_HTTP::$last;
 
-	$answer = WWD_Test_HTTP::next();
+	$answer = WWD_Test_HTTP::next( WWD_Test_HTTP::$last );
 
 	return array(
 		'response' => array( 'code' => $answer['status'] ),
@@ -490,6 +514,20 @@ class WWD_Test_WPDB {
 	public $dbname = 'wp_test';
 
 	/**
+	 * Core table names, as wpdb exposes them.
+	 *
+	 * @var string
+	 */
+	public $posts = 'wp_posts';
+
+	/**
+	 * Post meta table.
+	 *
+	 * @var string
+	 */
+	public $postmeta = 'wp_postmeta';
+
+	/**
 	 * Columns per table, in "SHOW FULL COLUMNS" shape.
 	 *
 	 * @var array
@@ -549,6 +587,44 @@ class WWD_Test_WPDB {
 		}
 
 		return array();
+	}
+
+	/**
+	 * Rows to answer with, keyed by a fragment of the query that asks for them.
+	 *
+	 * @var array
+	 */
+	public $rows = array();
+
+	/**
+	 * One row, when a test has planted one for this query.
+	 *
+	 * @param string $query  Query.
+	 * @param string $output Ignored.
+	 * @return array|null
+	 */
+	public function get_row( $query, $output = null ) {
+		foreach ( $this->rows as $fragment => $row ) {
+			if ( false !== strpos( $query, $fragment ) ) {
+				return $row;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * A single value. Only table existence, which is all the plugin asks for.
+	 *
+	 * @param string $query Query.
+	 * @return string|null
+	 */
+	public function get_var( $query ) {
+		if ( preg_match( "/SHOW TABLES LIKE '([^']+)'/i", $query, $matches ) ) {
+			return isset( $this->schema[ $matches[1] ] ) ? $matches[1] : null;
+		}
+
+		return null;
 	}
 
 	/**

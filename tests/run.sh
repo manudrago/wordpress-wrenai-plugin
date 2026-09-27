@@ -14,6 +14,10 @@ php tests/test-limits.php
 echo
 php tests/test-license.php
 echo
+php tests/test-license-signature.php
+echo
+php tests/test-license-endpoint.php
+echo
 php tests/test-bootstrap.php
 echo
 php tests/test-direct-engine.php
