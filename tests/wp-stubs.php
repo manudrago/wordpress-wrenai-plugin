@@ -635,7 +635,7 @@ class WWD_Test_WPDB {
 	 * @return string
 	 */
 	public function prepare( $query, ...$args ) {
-		return vsprintf( str_replace( array( '%s', '%d' ), array( "'%s'", '%d' ), $query ), $args );
+		return vsprintf( str_replace( array( '%s', '%d', '%i' ), array( "'%s'", '%d', '`%s`' ), $query ), $args );
 	}
 }
 

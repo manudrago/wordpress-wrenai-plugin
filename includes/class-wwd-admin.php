@@ -13,9 +13,11 @@ defined( 'ABSPATH' ) || exit;
 class WWD_Admin {
 
 	/**
-	 * Raw URL of the one-line installer offered on the settings screen.
+	 * Where the Wren AI installer and its instructions live. The plugin only
+	 * links to it: the script is downloaded and run by a person, on their
+	 * own server.
 	 */
-	const BOOTSTRAP_URL = 'https://raw.githubusercontent.com/manudrago/wordpress-wrenai-plugin/main/deploy/bootstrap.sh';
+	const INSTALL_GUIDE_URL = 'https://github.com/manudrago/wordpress-wrenai-plugin/tree/main/deploy';
 
 	/**
 	 * Hook everything.
@@ -198,13 +200,7 @@ class WWD_Admin {
 			array(
 				'root'      => esc_url_raw( rest_url( WWD_REST::NAMESPACE_V1 ) ),
 				'nonce'     => wp_create_nonce( 'wp_rest' ),
-				/**
-				 * Where the one-line installer is fetched from. Point this at
-				 * your own copy if you would rather not call GitHub.
-				 *
-				 * @param string $url Raw URL of deploy/bootstrap.sh.
-				 */
-				'bootstrap' => apply_filters( 'wwd_bootstrap_url', WWD_Admin::BOOTSTRAP_URL ),
+
 				'i18n'      => array(
 					'checking'  => __( 'Checking…', 'datachat-ai' ),
 					'syncing'   => __( 'Sending the schema to Wren AI…', 'datachat-ai' ),

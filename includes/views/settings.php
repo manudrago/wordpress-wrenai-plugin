@@ -215,7 +215,15 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 
 		<div id="wwd-pair-output" hidden>
 			<textarea class="wwd-copy code" id="wwd-pair-command" rows="5" readonly></textarea>
-			<p class="description"><?php esc_html_e( 'Run it as root on the machine that will host Wren AI. It takes a few minutes; this page notices on its own when the server reports in.', 'datachat-ai' ); ?></p>
+			<p class="description">
+				<?php
+				printf(
+					/* translators: %s: link to the installation guide. */
+					esc_html__( 'Download bootstrap.sh from the %s to the machine that will host Wren AI, then run the command above there as root. It takes a few minutes; this page notices on its own when the server reports in.', 'datachat-ai' ),
+					'<a href="' . esc_url( WWD_Admin::INSTALL_GUIDE_URL ) . '" target="_blank" rel="noopener">' . esc_html__( 'installation guide', 'datachat-ai' ) . '</a>'
+				);
+				?>
+			</p>
 		</div>
 	</div>
 

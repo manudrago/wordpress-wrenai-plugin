@@ -203,7 +203,7 @@
 
 	function pairCommand( data, key ) {
 		var lines = [
-			'curl -fsSL ' + config.bootstrap + ' | sudo bash -s -- \\',
+			'sudo bash bootstrap.sh \\',
 			'    --pair-url ' + data.pair_url + ' \\',
 			'    --pair-code ' + data.code
 		];

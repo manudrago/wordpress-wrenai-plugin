@@ -89,9 +89,11 @@ class WWD_Shortcodes {
 					'showChart'   => __( 'Chart', 'datachat-ai' ),
 					'save'        => __( 'Save to dashboard', 'datachat-ai' ),
 					'saving'      => __( 'Saving…', 'datachat-ai' ),
+					/* translators: %s: dashboard name. */
 					'saved'       => __( 'Saved to %s', 'datachat-ai' ),
 					'csv'         => __( 'Download CSV', 'datachat-ai' ),
 					'stop'        => __( 'Stop', 'datachat-ai' ),
+					/* translators: %d: number of rows shown. */
 					'truncated'   => __( 'Showing the first %d rows.', 'datachat-ai' ),
 					'cached'      => __( 'cached', 'datachat-ai' ),
 					'refresh'     => __( 'Refresh', 'datachat-ai' ),

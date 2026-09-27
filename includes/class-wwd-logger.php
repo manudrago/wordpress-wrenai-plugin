@@ -103,7 +103,7 @@ class WWD_Logger {
 		$limit = max( 1, min( 500, (int) $limit ) );
 
 		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB
-			$wpdb->prepare( "SELECT * FROM {$table} ORDER BY id DESC LIMIT %d", $limit ),
+			$wpdb->prepare( 'SELECT * FROM %i ORDER BY id DESC LIMIT %d', $table, $limit ),
 			ARRAY_A
 		);
 
@@ -120,7 +120,7 @@ class WWD_Logger {
 
 		$table = self::table();
 
-		$wpdb->query( "TRUNCATE TABLE {$table}" ); // phpcs:ignore WordPress.DB
+		$wpdb->query( $wpdb->prepare( 'TRUNCATE TABLE %i', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
 
 	/**

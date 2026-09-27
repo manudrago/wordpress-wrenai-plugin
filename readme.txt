@@ -1,85 +1,107 @@
 === DataChat AI ===
 Contributors: manudrago
 Tags: analytics, dashboard, ai, charts, woocommerce
-Requires at least: 6.0
-Tested up to: 6.8
+Requires at least: 6.2
+Tested up to: 7.1
 Requires PHP: 7.4
 Stable tag: 2.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Ask your WordPress and WooCommerce data anything in plain language. Charts and dashboards, no server, one API key.
+Ask your WordPress and WooCommerce data anything in plain English and get charts, tables and dashboards in wp-admin.
 
 == Description ==
 
-DataChat AI puts a question box on any page. Someone types "how many posts did we
-publish each month this year?", and gets a chart, a table and a CSV — then saves it as a panel
-on a dashboard that anybody can embed with a shortcode.
+DataChat AI adds a question box to wp-admin. Type "how many orders did we take each month this
+year?" and get a chart, a table and a CSV in seconds, then save the answer as a panel on a
+dashboard.
 
-The plugin sends your database *structure* (never its contents) to a language model of your
-choosing, asks it to turn the question into SQL, validates that SQL against a strict read-only
-guard, runs it on your database, and asks for a chart specification which it renders as inline
-SVG — no external chart library, no CDN.
+How it works: the plugin sends the question and your database *structure* (table and column
+names, types, and the descriptions you write) to the language model you choose. The model turns
+the question into SQL; the plugin checks that SQL against a strict read-only guard and runs it on
+your own database. To design the chart, a small sample of the result rows (30 by default) is sent
+to the model as well. Charts are drawn as inline SVG, with no external chart library and no CDN.
 
-Nothing to install anywhere: an API key is the whole setup, and Google AI Studio and Groq give
-one away. A Wren AI service can be used instead of the model, for sites that already run one.
+Setup is one API key: Google AI Studio and Groq have free tiers, OpenAI is pay-as-you-go, and any
+OpenAI-compatible endpoint works, including Ollama and LM Studio running on your own hardware, in
+which case nothing leaves your network.
 
-Everything happens in wp-admin under **DataChat**: Ask, Dashboards, Data & schema, Settings,
-Query log. No page to create, no shortcode to paste, and the WordPress login is the only door.
+= What you get =
 
-**Shortcodes** (Pro and Agency, for showing a dashboard to people without wp-admin access)
+* Plain-English questions under DataChat → Ask, with follow-ups ("and last year?") and example
+  questions.
+* Charts you choose: columns, bars, line, area, pie and KPI, one click apart. Time always runs
+  forwards, long labels turn the chart on its side, colours follow your theme.
+* Tables, SQL on view and CSV export.
+* Saved dashboards that re-run live (the free edition keeps two saved panels).
+* WooCommerce ready: share the order and product tables and ask about sales, customers and stock.
 
-* `[datachat]` — the ask form.
-* `[datachat_dashboard id="12"]` — a saved dashboard.
+= Safe by design =
 
-**Security**
+* The model is treated as an untrusted source of SQL. Every statement must be a single
+  SELECT/WITH, may only touch the tables you shared, may not reference blocked columns or system
+  schemas, and always carries a LIMIT.
+* Sensitive columns (passwords, emails, session tokens) are blocked and masked by default.
+* Define WWD_DB_USER / WWD_DB_PASSWORD in wp-config.php to run every query as a read-only MySQL
+  user.
+* Asking requires a capability (default: edit_posts). Every question and statement is logged.
 
-The model is treated as an untrusted source of SQL. Every statement must be a single
-SELECT/WITH, may only touch tables you explicitly shared, may not reference blocked columns or
-system schemas, and always carries a LIMIT. Blocked columns are stripped from the model and
-masked in results. Define WWD_DB_USER / WWD_DB_PASSWORD in wp-config.php to run every
-analytics query on a MySQL user that only has SELECT rights.
+= Pro and Agency =
 
-Asking requires a capability (default: edit_posts); public access is opt-in. Every question
-and statement is logged.
+Paid editions, available from [ideagency.co.uk](https://ideagency.co.uk/our-plugins/), add
+unlimited saved panels, scheduled email reports, shortcodes to show dashboards on your pages, the
+AI included without an API key (Pro), and ten sites per licence with white label (Agency). This
+free plugin is complete on its own and never contacts the shop.
 
 == Installation ==
 
-1. Upload the plugin to /wp-content/plugins/ and activate it.
-2. DataChat → Settings: paste an API key (get a free one at aistudio.google.com/apikey) and
-   press "Test connection".
-3. DataChat → Data & schema: pick the tables to share and add business context. Nothing to
-   deploy — the schema travels with every question.
-4. DataChat → Ask, and ask something. With Pro or Agency, put `[datachat]` on a page to reach
-   people who do not have wp-admin access.
-
-Prefer to run Wren AI? Pick that engine in Settings; deploy/README.md installs one on any
-Ubuntu/Debian machine with a single command.
+1. Install and activate the plugin.
+2. DataChat → Settings: choose a provider, paste an API key (a free one from
+   aistudio.google.com/apikey works) and press "Test connection".
+3. DataChat → Data & schema: pick the tables to share and add a few lines of business context.
+4. DataChat → Ask, and ask something.
 
 == Frequently Asked Questions ==
 
 = Which model does this need? =
 
 Any of: Google AI Studio (free tier, the default), Groq (free tier), OpenAI, or anything that
-speaks the OpenAI chat-completions API — Ollama and LM Studio included, so the model can run
-on your own hardware.
-
-= Which Wren AI version does this need, if I use that engine? =
-
-The REST API of wren-ai-service: Wren AI self-hosted "GenBI Classic" (the legacy/v1 branch and
-its Docker images) or Wren AI Cloud. The current agent-driven CLI on main does not expose that
-HTTP service.
+speaks the OpenAI chat-completions API, including Ollama and LM Studio on your own hardware.
 
 = What leaves my site? =
 
-The question, the schema (table and column names, types, relationships, your descriptions) and
-a sample of the result rows used to design the chart — 30 by default, adjustable with the
-wwd_chart_sample_rows filter. Never the rest of your data: the SQL runs here.
+The question, the schema (table and column names, types, relationships and your descriptions) and
+a sample of the result rows used to design the chart: 30 by default, adjustable with the
+wwd_chart_sample_rows filter. Never the rest of your data: the SQL runs here. With a local model
+(Ollama, LM Studio) nothing leaves your network.
 
-= Can visitors ask questions? =
+= Can I use a Wren AI service instead? =
 
-Only if you enable public access explicitly. They will be able to run aggregate queries over
-the shared tables, so share only tables that are safe to expose.
+Yes. Pick that engine in Settings. It talks to the REST API of wren-ai-service (Wren AI
+self-hosted "GenBI Classic" or Wren AI Cloud).
+
+== External services ==
+
+This plugin sends data to an external service only when you configure one, and only when someone
+asks a question, tests the connection or lists models in Settings. Which service depends on the
+provider you choose:
+
+* **Google AI Studio (Gemini API)**, the default provider: generativelanguage.googleapis.com.
+  Sent: the question, the schema of the tables you shared and up to 30 result rows.
+  [Terms](https://ai.google.dev/gemini-api/terms), [Privacy](https://policies.google.com/privacy).
+* **Groq**: api.groq.com. Same data.
+  [Terms](https://groq.com/terms-of-use/), [Privacy](https://groq.com/privacy-policy/).
+* **OpenAI**: api.openai.com. Same data.
+  [Terms](https://openai.com/policies/terms-of-use/), [Privacy](https://openai.com/policies/privacy-policy/).
+* **An OpenAI-compatible endpoint of your choice** (OpenRouter, Ollama, LM Studio…): the URL you
+  enter. Same data; the terms are those of whoever runs that endpoint.
+* **Wren AI**, only if you pick the Wren AI engine: the endpoint you enter, self-hosted or Wren AI
+  Cloud. Sent: the question and the schema. [Wren AI](https://getwren.ai/), [Privacy](https://getwren.ai/privacy).
+  Settings can also generate a pairing command for your own server; the installer it runs is
+  downloaded by you from this plugin's public GitHub repository. The plugin only shows the command
+  and links to the guide; it never downloads or runs anything itself.
+
+No data is sent anywhere until a provider and key are configured.
 
 == Changelog ==
 
@@ -93,6 +115,8 @@ the shared tables, so share only tables that are safe to expose.
 * Shortcodes are now part of Pro and Agency, and documented under their current names,
   [datachat] and [datachat_dashboard]. Without a licence a shortcode shows nothing to visitors and
   a one-line note to administrators. The old [wren_…] names keep working.
+* Ready for WordPress.org: passes Plugin Check with no errors, documents every external service
+  it can call, and the free edition shows no locked controls. Requires WordPress 6.2.
 * Settings: choosing the model included with Pro hides the key, model and URL fields, which do not
   apply to it; picking another provider brings them back with that provider's defaults. The raw
   licence-server reply is no longer shown.

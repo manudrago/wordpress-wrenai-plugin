@@ -4,13 +4,12 @@
  * Plugin URI:        https://github.com/manudrago/wordpress-wrenai-plugin
  * Description:       Ask your WordPress or WooCommerce data anything in plain language and get instant, saveable dashboards. The model writes the SQL, a strict guard checks it, your database answers - and the rows never leave your site.
  * Version:           2.5.0
- * Requires at least: 6.0
+ * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       datachat-ai
- * Domain Path:       /languages
  *
  * @package WP_Wren_Dashboards
  */

@@ -50,8 +50,8 @@ class WWD_Schema {
 			return array();
 		}
 
-		// Table names cannot be bound as parameters; the value is validated above.
-		$rows = $wpdb->get_results( 'SHOW FULL COLUMNS FROM `' . str_replace( '`', '', $table ) . '`', ARRAY_A ); // phpcs:ignore WordPress.DB
+		// The name is validated above and bound as an identifier.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SHOW FULL COLUMNS FROM %i', $table ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 
 		if ( ! is_array( $rows ) ) {
 			return array();

@@ -451,6 +451,16 @@ class WWD_Reports {
 		$disabled  = $available ? '' : ' disabled';
 		$days      = array( 1 => __( 'Monday', 'datachat-ai' ), 2 => __( 'Tuesday', 'datachat-ai' ), 3 => __( 'Wednesday', 'datachat-ai' ), 4 => __( 'Thursday', 'datachat-ai' ), 5 => __( 'Friday', 'datachat-ai' ), 6 => __( 'Saturday', 'datachat-ai' ), 7 => __( 'Sunday', 'datachat-ai' ) );
 
+		// The free edition carries no locked controls: a line saying where the
+		// feature lives, and nothing that looks like it could be switched on.
+		if ( ! WWD_License::is_paid_edition() ) {
+			return '<p class="description" style="margin:24px 0">' . sprintf(
+				/* translators: %s: link to the paid editions. */
+				esc_html__( 'Want this dashboard in your inbox every week? Scheduled email reports come with %s.', 'datachat-ai' ),
+				'<a href="https://ideagency.co.uk/our-plugins/" target="_blank" rel="noopener">DataChat AI Pro and Agency</a>'
+			) . '</p>';
+		}
+
 		$out  = '<div class="wwd-report-box" style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px 20px;margin:24px 0;max-width:820px">';
 		$out .= '<h2 style="margin-top:0">' . esc_html__( 'Email this dashboard', 'datachat-ai' ) . '</h2>';
 
