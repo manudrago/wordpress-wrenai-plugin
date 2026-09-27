@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       DataChat Licence Endpoint
  * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.5.0
+ * Version:           1.6.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -368,6 +368,17 @@ class DataChat_Licence_Endpoint {
 			return array( array( 'status' => 'invalid', 'message' => 'Unknown licence key.' ), array() );
 		}
 
+		// A key of ours that the feed also carries: its order is what says how
+		// long it runs and whose it is, so look that up rather than trust the
+		// feed's own date.
+		if ( empty( $found['order_id'] ) && in_array( self::product_of( $found ), self::own_products(), true ) ) {
+			$in_orders = self::find_in_orders( $key );
+
+			if ( $in_orders ) {
+				$found = array_merge( $in_orders, array_filter( array( 'product_id' => isset( $found['product_id'] ) ? $found['product_id'] : '' ) ) );
+			}
+		}
+
 		// A key still in SLKWoo's feed is a live key: the feed drops them when
 		// they expire. There may be no order to look at, so this stands alone.
 		if ( empty( $found['order_id'] ) ) {
@@ -398,7 +409,14 @@ class DataChat_Licence_Endpoint {
 			);
 		}
 
-		$expires = self::expiry( $found['order_id'] );
+		$licence = self::renewal_state( $found, $order );
+
+		if ( $licence ) {
+			$found   = array_merge( $found, $licence );
+			$expires = $licence['expires'];
+		} else {
+			$expires = self::expiry( $found['order_id'] );
+		}
 
 		if ( $expires && strtotime( $expires ) < time() ) {
 			return array(
@@ -487,7 +505,7 @@ class DataChat_Licence_Endpoint {
 
 		$seats = self::seats_for( $key, $found );
 		$all   = self::sites();
-		$slot  = hash( 'sha256', $key );
+		$slot  = self::slot_of( $key, $found );
 		$taken = isset( $all[ $slot ] ) && is_array( $all[ $slot ] ) ? $all[ $slot ] : array();
 		$now   = time();
 
@@ -556,7 +574,7 @@ class DataChat_Licence_Endpoint {
 		}
 
 		$all  = self::sites();
-		$slot = hash( 'sha256', $key );
+		$slot = self::slot_for_key( $key );
 
 		if ( ! isset( $all[ $slot ][ $site ] ) ) {
 			// Nothing held, which is the state the caller wanted anyway.
@@ -588,7 +606,8 @@ class DataChat_Licence_Endpoint {
 		 * @param string $key   Licence key.
 		 * @param array  $found Where the key was found, product_id included.
 		 */
-		$seats = (int) apply_filters( 'datachat_license_seats', self::SEATS, $key, $found );
+		$base  = ! empty( $found['seats'] ) ? (int) $found['seats'] : self::SEATS;
+		$seats = (int) apply_filters( 'datachat_license_seats', $base, $key, $found );
 
 		return $seats > 0 ? $seats : 1;
 	}
@@ -780,7 +799,7 @@ class DataChat_Licence_Endpoint {
 			'hidden_products' => self::own_products(),
 			'seats'          => '' === $key ? null : array(
 				'limit' => self::seats_for( $key, is_array( $found ) ? $found : array() ),
-				'sites' => array_keys( (array) ( self::sites()[ hash( 'sha256', $key ) ] ?? array() ) ),
+				'sites' => array_keys( (array) ( self::sites()[ self::slot_of( $key, is_array( $found ) ? $found : array() ) ] ?? array() ) ),
 			),
 		);
 
@@ -858,6 +877,18 @@ class DataChat_Licence_Endpoint {
 		if ( $in_feed ) {
 			return $in_feed;
 		}
+
+		return self::find_in_orders( $key );
+	}
+
+	/**
+	 * Find the order a key was sold with, ignoring the feed.
+	 *
+	 * @param string $key Licence key.
+	 * @return array|null {order_id, where, meta_key, item_id}
+	 */
+	protected static function find_in_orders( $key ) {
+		global $wpdb;
 
 		$row = $wpdb->get_row( // phpcs:ignore WordPress.DB
 			$wpdb->prepare(
@@ -1585,7 +1616,7 @@ class DataChat_Licence_Endpoint {
 			return $gate;
 		}
 
-		$slot = hash( 'sha256', $key );
+		$slot = self::ai_slot( $key );
 
 		if ( ! self::ai_burst_ok( $slot ) ) {
 			return self::ai_error( 429, 'Too many questions in a minute. Wait a moment and ask again.', 'rate_limit' );
@@ -1684,8 +1715,8 @@ class DataChat_Licence_Endpoint {
 			return self::ai_error( 503, 'The AI included with Pro is not switched on yet. Use your own key under DataChat → Settings meanwhile.', 'not_configured' );
 		}
 
-		$slot   = hash( 'sha256', $key );
-		$cached = get_transient( 'datachat_ai_ok_' . $slot );
+		$cache  = 'datachat_ai_ok_' . hash( 'sha256', $key );
+		$cached = get_transient( $cache );
 
 		if ( ! is_array( $cached ) ) {
 			if ( ! self::allowed() ) {
@@ -1698,12 +1729,15 @@ class DataChat_Licence_Endpoint {
 				'status'  => (string) $verdict['status'],
 				'message' => isset( $verdict['message'] ) ? (string) $verdict['message'] : '',
 				'product' => $found ? self::product_of( $found ) : '',
+				'slot'    => self::slot_of( $key, $found ? $found : array() ),
 			);
 
 			// Ten minutes: long enough that a question does not cost a feed
 			// decryption per call, short enough that a refund bites quickly.
-			set_transient( 'datachat_ai_ok_' . $slot, $cached, 10 * MINUTE_IN_SECONDS );
+			set_transient( $cache, $cached, 10 * MINUTE_IN_SECONDS );
 		}
+
+		$slot = isset( $cached['slot'] ) ? (string) $cached['slot'] : hash( 'sha256', $key );
 
 		if ( 'valid' !== $cached['status'] ) {
 			return self::ai_error( 403, '' !== $cached['message'] ? $cached['message'] : 'This licence is not valid.', 'invalid_licence' );
@@ -1724,6 +1758,235 @@ class DataChat_Licence_Endpoint {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Where a licence's sites and use are counted.
+	 *
+	 * A licence of ours is the customer's purchase of a product, not the key
+	 * string: a renewal issues a new key, and both keys must share the same
+	 * seats and the same monthly questions. Anything else is counted by key,
+	 * as before.
+	 *
+	 * @param string $key   Licence key.
+	 * @param array  $found Where it was found, slot included when known.
+	 * @return string
+	 */
+	protected static function slot_of( $key, array $found ) {
+		return ! empty( $found['slot'] ) ? (string) $found['slot'] : hash( 'sha256', $key );
+	}
+
+	/**
+	 * The slot of a key, looked up from scratch.
+	 *
+	 * @param string $key Licence key.
+	 * @return string
+	 */
+	protected static function slot_for_key( $key ) {
+		list( , $found ) = self::verdict( $key );
+
+		return self::slot_of( $key, is_array( $found ) ? $found : array() );
+	}
+
+	/**
+	 * The slot the relay counts a key's questions in, cached with its verdict.
+	 *
+	 * @param string $key Licence key.
+	 * @return string
+	 */
+	protected static function ai_slot( $key ) {
+		$cached = get_transient( 'datachat_ai_ok_' . hash( 'sha256', $key ) );
+
+		return is_array( $cached ) && ! empty( $cached['slot'] ) ? (string) $cached['slot'] : hash( 'sha256', $key );
+	}
+
+	/**
+	 * How long a licence of ours runs, counting renewals, and how many sites
+	 * it covers.
+	 *
+	 * Every paid purchase of the product by the same customer adds a term,
+	 * starting when it was paid or when the previous term ends, whichever is
+	 * later - so renewing early loses nothing. The key the customer already
+	 * has keeps working: renewing is buying again, not typing a new key.
+	 *
+	 * @param array    $found Where the key was found.
+	 * @param WC_Order $order The order it was sold with.
+	 * @return array|null {expires, slot, seats, product_id}, or null for a product that is not ours.
+	 */
+	protected static function renewal_state( array $found, $order ) {
+		$product = self::product_of( $found );
+
+		if ( '' === $product || ! in_array( $product, self::own_products(), true ) ) {
+			return null;
+		}
+
+		$customer = self::customer_of( $order );
+		$days     = self::licence_days( $product );
+
+		$purchases = self::purchases( $order, $product );
+
+		/**
+		 * Filters the purchases a licence is made of - the paid orders of this
+		 * product by this customer, oldest first.
+		 *
+		 * @param array  $purchases List of {paid (timestamp), quantity, order_id}.
+		 * @param string $product   Product id.
+		 * @param string $customer  Customer identity.
+		 */
+		$purchases = (array) apply_filters( 'datachat_license_purchases', $purchases, $product, $customer );
+
+		usort(
+			$purchases,
+			static function ( $a, $b ) {
+				return (int) $a['paid'] - (int) $b['paid'];
+			}
+		);
+
+		$ends  = 0;
+		$seats = 1;
+
+		foreach ( $purchases as $purchase ) {
+			$paid  = (int) $purchase['paid'];
+			$ends  = max( $ends, $paid ) + $days * DAY_IN_SECONDS;
+			$seats = max( 1, isset( $purchase['quantity'] ) ? (int) $purchase['quantity'] : 1 );
+		}
+
+		return array(
+			'product_id' => $product,
+			'slot'       => 'lic_' . hash( 'sha256', $customer . '|' . $product ),
+			'seats'      => $seats,
+			// No term, or nothing on record: no end date, as for a lifetime.
+			'expires'    => $days > 0 && $ends > 0 ? gmdate( 'Y-m-d', $ends ) : '',
+		);
+	}
+
+	/**
+	 * Who bought an order: their account, or failing that their email.
+	 *
+	 * @param WC_Order $order Order.
+	 * @return string
+	 */
+	protected static function customer_of( $order ) {
+		$id = method_exists( $order, 'get_customer_id' ) ? (int) $order->get_customer_id() : 0;
+
+		if ( $id > 0 ) {
+			return 'user:' . $id;
+		}
+
+		$email = method_exists( $order, 'get_billing_email' ) ? strtolower( trim( (string) $order->get_billing_email() ) ) : '';
+
+		return '' !== $email ? 'email:' . $email : 'order:' . ( method_exists( $order, 'get_id' ) ? $order->get_id() : 0 );
+	}
+
+	/**
+	 * Days one purchase of a product runs, from SLKWoo's own setting on it.
+	 *
+	 * @param string $product Product id.
+	 * @return int Zero for a licence that does not expire.
+	 */
+	protected static function licence_days( $product ) {
+		$days = function_exists( 'get_post_meta' ) ? (int) get_post_meta( (int) $product, 'slkwoo_expiry', true ) : 0;
+
+		/**
+		 * Filters how many days one purchase of a product runs.
+		 *
+		 * @param int    $days    Days; zero for no end.
+		 * @param string $product Product id.
+		 */
+		return max( 0, (int) apply_filters( 'datachat_license_days', $days, $product ) );
+	}
+
+	/**
+	 * The paid orders of a product by the customer behind an order.
+	 *
+	 * @param WC_Order $order   Order a key was sold with.
+	 * @param string   $product Product id.
+	 * @return array List of {paid, quantity, order_id}.
+	 */
+	protected static function purchases( $order, $product ) {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return array( self::purchase_in( $order, $product ) );
+		}
+
+		$args = array(
+			'status'  => array_map(
+				static function ( $status ) {
+					return 'wc-' . $status;
+				},
+				self::PAID
+			),
+			'limit'   => 200,
+			'orderby' => 'date',
+			'order'   => 'ASC',
+			'type'    => 'shop_order',
+		);
+
+		$id = method_exists( $order, 'get_customer_id' ) ? (int) $order->get_customer_id() : 0;
+
+		$email = method_exists( $order, 'get_billing_email' ) ? (string) $order->get_billing_email() : '';
+
+		if ( $id > 0 ) {
+			$args['customer_id'] = $id;
+		} elseif ( '' !== $email ) {
+			$args['billing_email'] = $email;
+		} else {
+			// Nobody to look further for: this order is the whole licence.
+			return array( self::purchase_in( $order, $product ) );
+		}
+
+		$found = array();
+
+		foreach ( (array) wc_get_orders( $args ) as $candidate ) {
+			$purchase = self::purchase_in( $candidate, $product );
+
+			if ( $purchase['quantity'] > 0 ) {
+				$found[] = $purchase;
+			}
+		}
+
+		// The order the key came from counts even if the query missed it.
+		$own = self::purchase_in( $order, $product );
+
+		if ( $own['quantity'] > 0 && ! in_array( $own['order_id'], array_column( $found, 'order_id' ), true ) ) {
+			$found[] = $own;
+		}
+
+		return $found;
+	}
+
+	/**
+	 * One order as a purchase of a product.
+	 *
+	 * @param WC_Order $order   Order.
+	 * @param string   $product Product id.
+	 * @return array {paid, quantity, order_id}
+	 */
+	protected static function purchase_in( $order, $product ) {
+		$quantity = 0;
+
+		if ( method_exists( $order, 'get_items' ) ) {
+			foreach ( $order->get_items() as $item ) {
+				if ( method_exists( $item, 'get_product_id' ) && (string) $item->get_product_id() === (string) $product ) {
+					$quantity += max( 1, (int) $item->get_quantity() );
+				}
+			}
+		}
+
+		$date = null;
+
+		if ( method_exists( $order, 'get_date_paid' ) ) {
+			$date = $order->get_date_paid();
+		}
+
+		if ( ! $date && method_exists( $order, 'get_date_created' ) ) {
+			$date = $order->get_date_created();
+		}
+
+		return array(
+			'paid'     => $date ? (int) $date->getTimestamp() : time(),
+			'quantity' => $quantity,
+			'order_id' => method_exists( $order, 'get_id' ) ? (int) $order->get_id() : 0,
+		);
 	}
 
 	/**

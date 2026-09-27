@@ -450,7 +450,23 @@ class Shop_Order {
  * @return Shop_Order
  */
 function wc_get_order( $order_id ) {
+	if ( isset( $GLOBALS['dc_orders'][ $order_id ] ) ) {
+		return $GLOBALS['dc_orders'][ $order_id ];
+	}
+
 	return new Shop_Order();
+}
+
+/**
+ * Order query: the orders a test has put on record for the customer asked about.
+ *
+ * @param array $args Query.
+ * @return array
+ */
+function wc_get_orders( $args ) {
+	$GLOBALS['dc_last_order_query'] = $args;
+
+	return isset( $GLOBALS['dc_orders'] ) ? array_values( $GLOBALS['dc_orders'] ) : array();
 }
 
 $GLOBALS['wwd_rest_answer'] = array(
@@ -773,6 +789,7 @@ $openai_ok = array(
 	),
 );
 
+Shop_Order::$status = 'completed';
 delete_transient( 'datachat_lic_' . md5( 'unknown' ) );
 delete_option( DataChat_Licence_Endpoint::SITES );
 delete_option( DataChat_Licence_Endpoint::AI_USAGE );
@@ -814,7 +831,7 @@ check( 'with the budget capped', 8192 === $sent['body']['max_tokens'] );
 check( 'JSON mode passed through', 'json_object' === $sent['body']['response_format']['type'] );
 check( 'and only system, user and assistant messages', 2 === count( $sent['body']['messages'] ), wp_json_encode( $sent['body']['messages'] ) );
 check( 'the licence key never reaches OpenAI', false === strpos( wp_json_encode( $sent ), 'DCAI-AI-0001' ) );
-check( 'the call is counted', 1 === Shop_Probe::call( 'ai_used', array( hash( 'sha256', 'DCAI-AI-0001' ) ) ) );
+check( 'the call is counted', 1 === Shop_Probe::call( 'ai_used', array( Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ) ) );
 
 WWD_Test_HTTP::queue( array( $openai_ok ) );
 check( 'the key also works as a bearer token', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), false )->status );
@@ -837,7 +854,9 @@ check( 'without reaching OpenAI', empty( WWD_Test_HTTP::$requests ) );
 add_test_filter( 'datachat_license_lookup', null );
 add_test_filter( 'datachat_license_passphrase', '' );
 WWD_Test_HTTP::queue( array( $openai_ok ) );
+Shop_Order::$status = 'cancelled';
 $unknown = relay_ask( 'DCAI-NOBODY-00', 'pro-site.example' );
+Shop_Order::$status = 'completed';
 check( 'an unknown key is refused', 403 === $unknown->status && 'invalid_licence' === $unknown->data['error']['code'], wp_json_encode( $unknown->data ) );
 check( 'and no key is refused as such', 401 === relay_ask( '', 'pro-site.example' )->status );
 
@@ -857,11 +876,11 @@ check( 'without reaching OpenAI', empty( WWD_Test_HTTP::$requests ) );
 
 // Last month's use does not count.
 $usage = get_option( DataChat_Licence_Endpoint::AI_USAGE );
-$usage[ hash( 'sha256', 'DCAI-AI-0001' ) ]['month'] = '2001-01';
+$usage[ Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ]['month'] = '2001-01';
 update_option( DataChat_Licence_Endpoint::AI_USAGE, $usage );
 WWD_Test_HTTP::queue( array( $openai_ok ) );
 check( 'a new month starts from zero', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example' )->status );
-check( 'and the old month is forgotten', 1 === Shop_Probe::call( 'ai_used', array( hash( 'sha256', 'DCAI-AI-0001' ) ) ) );
+check( 'and the old month is forgotten', 1 === Shop_Probe::call( 'ai_used', array( Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ) ) );
 add_test_filter( 'datachat_ai_monthly_calls', 600 );
 
 // Failures that are the shop's, not the customer's.
@@ -872,7 +891,7 @@ check( 'OpenAI refusing the shop\'s key is not blamed on the customer', 503 === 
 WWD_Test_HTTP::queue( array( array( 'status' => 400, 'response' => array( 'error' => array( 'message' => "Unsupported parameter: 'max_tokens' is not supported with this model.", 'param' => 'max_tokens' ) ) ) ) );
 $dialect = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
 check( 'a parameter complaint goes back as OpenAI worded it', 400 === $dialect->status && 'max_tokens' === $dialect->data['error']['param'] );
-check( 'and a failed call is not counted', 1 === Shop_Probe::call( 'ai_used', array( hash( 'sha256', 'DCAI-AI-0001' ) ) ) );
+check( 'and a failed call is not counted', 1 === Shop_Probe::call( 'ai_used', array( Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ) ) );
 
 // The burst limit.
 delete_transient( 'datachat_ai_burst_' . substr( hash( 'sha256', 'DCAI-AI-0001' ), 0, 20 ) );
@@ -889,6 +908,215 @@ $models = DataChat_Licence_Endpoint::ai_models( new WP_REST_Request( array() ) )
 check( 'the model list names one model', array( 'included' ) === array_column( $models['data'], 'id' ) );
 
 check( 'the relay\'s key is never in the report', false === strpos( wp_json_encode( DataChat_Licence_Endpoint::report( '' ) ), 'sk-shop-secret' ) );
+
+
+// ---------------------------------------------------------------------------
+// Renewals: a licence of ours runs a term per purchase, the key the customer
+// already has keeps working, and old and new keys share one seat.
+// ---------------------------------------------------------------------------
+
+/**
+ * A line on an order.
+ */
+class Renewal_Item {
+	/** @var int */ public $product;
+	/** @var int */ public $qty;
+	/**
+	 * @param int $product Product.
+	 * @param int $qty     Quantity.
+	 */
+	public function __construct( $product, $qty = 1 ) {
+		$this->product = $product;
+		$this->qty     = $qty;
+	}
+	/** @return int */
+	public function get_product_id() {
+		return $this->product;
+	}
+	/** @return int */
+	public function get_quantity() {
+		return $this->qty;
+	}
+}
+
+/**
+ * An order with a date, a customer and lines.
+ */
+class Renewal_Order {
+	/** @var int */ public $id;
+	/** @var int */ public $paid;
+	/** @var array */ public $items;
+	/** @var string */ public $status = 'completed';
+	/** @var int */ public $customer = 0;
+	/** @var string */ public $email = 'buyer@example.com';
+	/**
+	 * @param int   $id    Id.
+	 * @param int   $paid  Paid at.
+	 * @param array $items Lines.
+	 */
+	public function __construct( $id, $paid, array $items ) {
+		$this->id    = $id;
+		$this->paid  = $paid;
+		$this->items = $items;
+	}
+	/** @return int */
+	public function get_id() {
+		return $this->id;
+	}
+	/** @return string */
+	public function get_status() {
+		return $this->status;
+	}
+	/** @return array */
+	public function get_items() {
+		return $this->items;
+	}
+	/** @return int */
+	public function get_customer_id() {
+		return $this->customer;
+	}
+	/** @return string */
+	public function get_billing_email() {
+		return $this->email;
+	}
+	/** @return DateTime */
+	public function get_date_paid() {
+		return ( new DateTime() )->setTimestamp( $this->paid );
+	}
+	/** @param string $key Meta. @return string */
+	public function get_meta( $key ) {
+		return '';
+	}
+}
+
+/**
+ * Put orders on record, by id.
+ *
+ * @param array $orders Orders.
+ * @return void
+ */
+function orders_on_record( array $orders ) {
+	$GLOBALS['dc_orders'] = array();
+
+	foreach ( $orders as $order ) {
+		$GLOBALS['dc_orders'][ $order->id ] = $order;
+	}
+}
+
+$day = DAY_IN_SECONDS;
+
+add_test_filter( 'datachat_license_own_products', '7001,7002' );
+add_test_filter( 'datachat_license_days', 365 );
+add_test_filter( 'datachat_license_seats', null );
+delete_option( DataChat_Licence_Endpoint::SITES );
+delete_transient( 'datachat_lic_' . md5( 'unknown' ) );
+
+// Bought 100 days ago: runs until 265 days from now.
+orders_on_record( array( new Renewal_Order( 9001, time() - 100 * $day, array( new Renewal_Item( 7001 ) ) ) ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9001, 'where' => 'order_itemmeta', 'product_id' => '7001' ) );
+
+$fresh = ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' );
+
+check( 'a licence bought 100 days ago is valid', 'valid' === $fresh['status'], wp_json_encode( $fresh ) );
+check( 'and ends a year after it was paid', gmdate( 'Y-m-d', time() + 265 * $day ) === $fresh['expires'], $fresh['expires'] );
+check( 'the query asks for this customer\'s paid orders', 'buyer@example.com' === $GLOBALS['dc_last_order_query']['billing_email'] && in_array( 'wc-completed', $GLOBALS['dc_last_order_query']['status'], true ) );
+
+// Bought 400 days ago and never renewed: expired.
+orders_on_record( array( new Renewal_Order( 9001, time() - 400 * $day, array( new Renewal_Item( 7001 ) ) ) ) );
+
+$lapsed = ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' );
+
+check( 'a licence not renewed after a year has expired', 'expired' === $lapsed['status'], wp_json_encode( $lapsed ) );
+check( 'and says when it ended', gmdate( 'Y-m-d', time() - 35 * $day ) === $lapsed['expires'], $lapsed['expires'] );
+
+// Renewed 10 days ago: the old key works again, a year from the renewal.
+orders_on_record(
+	array(
+		new Renewal_Order( 9001, time() - 400 * $day, array( new Renewal_Item( 7001 ) ) ),
+		new Renewal_Order( 9002, time() - 10 * $day, array( new Renewal_Item( 7001 ) ) ),
+	)
+);
+
+$renewed = ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' );
+
+check( 'after a renewal the old key is valid again', 'valid' === $renewed['status'], wp_json_encode( $renewed ) );
+check( 'for a year from the renewal', gmdate( 'Y-m-d', time() + 355 * $day ) === $renewed['expires'], $renewed['expires'] );
+
+// Renewed early, 300 days in: the new year starts when the old one ends.
+orders_on_record(
+	array(
+		new Renewal_Order( 9001, time() - 300 * $day, array( new Renewal_Item( 7001 ) ) ),
+		new Renewal_Order( 9002, time() - 1 * $day, array( new Renewal_Item( 7001 ) ) ),
+	)
+);
+
+$early = ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' );
+
+check( 'renewing early loses no days', gmdate( 'Y-m-d', time() + 430 * $day ) === $early['expires'], $early['expires'] );
+
+// A purchase of another product does not extend this one.
+orders_on_record(
+	array(
+		new Renewal_Order( 9001, time() - 400 * $day, array( new Renewal_Item( 7001 ) ) ),
+		new Renewal_Order( 9003, time() - 5 * $day, array( new Renewal_Item( 7002 ) ) ),
+	)
+);
+
+check( 'buying Agency does not renew Pro', 'expired' === ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' )['status'] );
+
+// The key issued with the renewal shares the old key's seat.
+orders_on_record(
+	array(
+		new Renewal_Order( 9001, time() - 400 * $day, array( new Renewal_Item( 7001 ) ) ),
+		new Renewal_Order( 9002, time() - 10 * $day, array( new Renewal_Item( 7001 ) ) ),
+	)
+);
+delete_option( DataChat_Licence_Endpoint::SITES );
+
+ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' );
+
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9002, 'where' => 'order_itemmeta', 'product_id' => '7001' ) );
+
+$new_key_same_site = ask_from( 'DCAI-RENEW-NEW', 'renew-site.example' );
+$new_key_elsewhere = ask_from( 'DCAI-RENEW-NEW', 'another-site.example' );
+
+check( 'the renewal\'s own key works on the same site', 'valid' === $new_key_same_site['status'] && 1 === $new_key_same_site['seats']['used'], wp_json_encode( $new_key_same_site ) );
+check( 'but is not a second licence for another site', 'invalid' === $new_key_elsewhere['status'] && false !== strpos( $new_key_elsewhere['message'], 'renew-site.example' ), wp_json_encode( $new_key_elsewhere ) );
+
+// Two licences bought in one order cover two sites.
+orders_on_record( array( new Renewal_Order( 9004, time() - 3 * $day, array( new Renewal_Item( 7001, 2 ) ) ) ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9004, 'where' => 'order_itemmeta', 'product_id' => '7001' ) );
+delete_option( DataChat_Licence_Endpoint::SITES );
+
+ask_from( 'DCAI-TWO-SITES', 'one.example' );
+$second_of_two = ask_from( 'DCAI-TWO-SITES', 'two.example' );
+
+check( 'a quantity of two covers two sites', 'valid' === $second_of_two['status'] && 2 === $second_of_two['seats']['limit'], wp_json_encode( $second_of_two ) );
+
+// A refunded renewal does not count; the key's own refunded order kills it.
+$refunded = new Renewal_Order( 9001, time() - 20 * $day, array( new Renewal_Item( 7001 ) ) );
+$refunded->status = 'refunded';
+orders_on_record( array( $refunded ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9001, 'where' => 'order_itemmeta', 'product_id' => '7001' ) );
+
+check( 'a key whose order was refunded is refused', 'invalid' === ask_from( 'DCAI-RENEW-OLD', 'renew-site.example' )['status'] );
+
+// Customers with accounts are matched by account, not by email.
+$account = new Renewal_Order( 9005, time() - 30 * $day, array( new Renewal_Item( 7001 ) ) );
+$account->customer = 77;
+orders_on_record( array( $account ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9005, 'where' => 'order_itemmeta', 'product_id' => '7001' ) );
+
+ask_from( 'DCAI-ACCOUNT', 'acct.example' );
+check( 'an account holder is looked up by account', 77 === $GLOBALS['dc_last_order_query']['customer_id'] && ! isset( $GLOBALS['dc_last_order_query']['billing_email'] ) );
+
+// Someone else's product keeps the old rules: the key is the licence.
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9006, 'where' => 'order_itemmeta', 'product_id' => '5695' ) );
+orders_on_record( array( new Renewal_Order( 9006, time() - 900 * $day, array( new Renewal_Item( 5695 ) ) ) ) );
+
+check( 'a product that is not ours is not given our expiry', 'valid' === ask_from( 'QOMON-KEY-001', 'qomon-site.example' )['status'] );
+
+$GLOBALS['dc_orders'] = array();
 
 echo "\n{$checks} checks, {$failures} failures\n";
 

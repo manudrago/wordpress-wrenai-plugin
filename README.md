@@ -344,6 +344,25 @@ dietro il filtro `wwd_is_licensed`: le build a pagamento aggiungono un file,
 | Pro | `datachat-ai-pro` | chiave, pannelli illimitati, **AI inclusa** (nessuna API key) |
 | Agency | `datachat-ai-agency` | chiave, pannelli illimitati, API key propria |
 
+### Rinnovi
+
+Una licenza DataChat è l'acquisto di un prodotto da parte di un cliente, non la
+stringa della chiave. Ogni ordine pagato dello stesso prodotto dallo stesso
+cliente (account, o email per gli ospiti) aggiunge un periodo — i giorni di
+`slkwoo_expiry` sul prodotto — che parte dal pagamento o dalla fine del periodo
+precedente, se è più tardi. Quindi:
+
+- **rinnovare è ricomprare**: la chiave già attiva torna valida (o si allunga)
+  senza toccare niente sul sito; il plugin se ne accorge al controllo giornaliero;
+- la chiave nuova che SLKWoo emette col rinnovo **condivide lo stesso posto**:
+  non è una seconda licenza;
+- una quantità di 2 in un ordine copre 2 siti;
+- un ordine rimborsato non conta, e la chiave nata da quell'ordine smette di
+  funzionare.
+
+Vale solo per i prodotti in "DataChat products"; gli altri (Qomon) restano come
+prima.
+
 ### L'AI inclusa nel Pro
 
 Il Pro non chiede nessuna chiave al cliente: fa le domande al negozio che ha
