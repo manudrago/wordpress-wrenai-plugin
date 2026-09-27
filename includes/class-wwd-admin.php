@@ -172,7 +172,7 @@ class WWD_Admin {
 					'indexing'  => __( 'Wren AI is indexing the schema…', 'datachat-ai' ),
 					'synced'    => __( 'Schema deployed. You can start asking questions.', 'datachat-ai' ),
 					'failed'    => __( 'Failed', 'datachat-ai' ),
-					'connected' => __( 'Connected to Wren AI', 'datachat-ai' ),
+					'connected' => __( 'Connected', 'datachat-ai' ),
 					'waiting'   => __( 'Waiting for the server to report in…', 'datachat-ai' ),
 					'paired'    => __( 'Server connected. Reloading…', 'datachat-ai' ),
 					'pairOff'   => __( 'Pairing closed.', 'datachat-ai' ),
