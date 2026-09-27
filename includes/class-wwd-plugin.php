@@ -40,6 +40,7 @@ class WWD_Plugin {
 	 */
 	public function init() {
 		add_action( 'init', array( 'WWD_Dashboards', 'register' ) );
+		WWD_Reports::init();
 
 		if ( WWD_License::is_paid_edition() ) {
 			add_filter( 'wwd_is_licensed', array( 'WWD_License', 'is_valid' ) );
@@ -168,6 +169,7 @@ class WWD_Plugin {
 	 * @return void
 	 */
 	public static function deactivate() {
+		WWD_Reports::unschedule();
 		flush_rewrite_rules();
 	}
 }

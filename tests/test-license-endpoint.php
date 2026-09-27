@@ -996,7 +996,8 @@ class Renewal_Order {
  * @return void
  */
 function orders_on_record( array $orders ) {
-	$GLOBALS['dc_orders'] = array();
+	
+$GLOBALS['dc_orders'] = array();
 
 	foreach ( $orders as $order ) {
 		$GLOBALS['dc_orders'][ $order->id ] = $order;
@@ -1115,6 +1116,32 @@ add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9006, 'where' =
 orders_on_record( array( new Renewal_Order( 9006, time() - 900 * $day, array( new Renewal_Item( 5695 ) ) ) ) );
 
 check( 'a product that is not ours is not given our expiry', 'valid' === ask_from( 'QOMON-KEY-001', 'qomon-site.example' )['status'] );
+
+// An edition that covers ten sites.
+update_option( 'datachat_product_sites', '7002:10' );
+orders_on_record( array( new Renewal_Order( 9007, time() - 3 * $day, array( new Renewal_Item( 7002 ) ) ) ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9007, 'where' => 'order_itemmeta', 'product_id' => '7002' ) );
+delete_option( DataChat_Licence_Endpoint::SITES );
+
+for ( $i = 1; $i <= 10; $i++ ) {
+	$tenth = ask_from( 'DCAI-AGENCY-TEN', 'client' . $i . '.example' );
+}
+
+$eleventh = ask_from( 'DCAI-AGENCY-TEN', 'client11.example' );
+
+check( 'an Agency licence covers ten client sites', 'valid' === $tenth['status'] && 10 === $tenth['seats']['limit'] && 10 === $tenth['seats']['used'], wp_json_encode( $tenth['seats'] ) );
+check( 'and refuses the eleventh', 'invalid' === $eleventh['status'] && false !== strpos( $eleventh['message'], 'client1.example' ), $eleventh['message'] );
+
+// Two Agency licences in one order: twenty sites.
+orders_on_record( array( new Renewal_Order( 9008, time() - 3 * $day, array( new Renewal_Item( 7002, 2 ) ) ) ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9008, 'where' => 'order_itemmeta', 'product_id' => '7002' ) );
+check( 'two Agency licences cover twenty', 20 === ask_from( 'DCAI-AGENCY-20', 'a.example' )['seats']['limit'] );
+
+// Pro is still one site.
+orders_on_record( array( new Renewal_Order( 9009, time() - 3 * $day, array( new Renewal_Item( 7001 ) ) ) ) );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 9009, 'where' => 'order_itemmeta', 'product_id' => '7001' ) );
+check( 'Pro stays at one site', 1 === ask_from( 'DCAI-PRO-ONE', 'p.example' )['seats']['limit'] );
+delete_option( 'datachat_product_sites' );
 
 $GLOBALS['dc_orders'] = array();
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       DataChat Licence Endpoint
  * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -606,7 +606,7 @@ class DataChat_Licence_Endpoint {
 		 * @param string $key   Licence key.
 		 * @param array  $found Where the key was found, product_id included.
 		 */
-		$base  = ! empty( $found['seats'] ) ? (int) $found['seats'] : self::SEATS;
+		$base  = ! empty( $found['seats'] ) ? (int) $found['seats'] : self::product_sites( self::product_of( $found ) );
 		$seats = (int) apply_filters( 'datachat_license_seats', $base, $key, $found );
 
 		return $seats > 0 ? $seats : 1;
@@ -1501,6 +1501,11 @@ class DataChat_Licence_Endpoint {
 			esc_attr( implode( ',', self::ai_products() ) )
 		);
 
+		printf(
+			'<tr><th scope="row"><label for="dc-sites">Sites per licence</label></th><td><input id="dc-sites" name="datachat_product_sites" type="text" class="regular-text code" value="%s" placeholder="5764:10"><p class="description">product:sites, comma-separated, for editions that cover more than one site. Anything not listed covers one.</p></td></tr>',
+			esc_attr( (string) get_option( 'datachat_product_sites', '' ) )
+		);
+
 		$has_key = '' !== self::openai_key();
 		printf(
 			'<tr><th scope="row"><label for="dc-openai">OpenAI API key</label></th><td><input id="dc-openai" name="datachat_openai_api_key" type="password" class="regular-text code" value="" autocomplete="new-password" placeholder="%s" %s><p class="description">%s</p></td></tr>',
@@ -1575,6 +1580,19 @@ class DataChat_Licence_Endpoint {
 		}
 
 		update_option( 'datachat_ai_product_ids', $ids( 'datachat_ai_product_ids' ), false );
+
+		$sites_raw = isset( $_POST['datachat_product_sites'] ) ? sanitize_text_field( wp_unslash( $_POST['datachat_product_sites'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		$sites     = array();
+
+		foreach ( array_filter( array_map( 'trim', explode( ',', $sites_raw ) ) ) as $pair ) {
+			$parts = array_map( 'absint', explode( ':', $pair ) );
+
+			if ( 2 === count( $parts ) && $parts[0] && $parts[1] ) {
+				$sites[] = $parts[0] . ':' . $parts[1];
+			}
+		}
+
+		update_option( 'datachat_product_sites', implode( ',', $sites ), false );
 
 		$key = isset( $_POST['datachat_openai_api_key'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['datachat_openai_api_key'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 
@@ -1848,7 +1866,7 @@ class DataChat_Licence_Endpoint {
 		foreach ( $purchases as $purchase ) {
 			$paid  = (int) $purchase['paid'];
 			$ends  = max( $ends, $paid ) + $days * DAY_IN_SECONDS;
-			$seats = max( 1, isset( $purchase['quantity'] ) ? (int) $purchase['quantity'] : 1 );
+			$seats = max( 1, isset( $purchase['quantity'] ) ? (int) $purchase['quantity'] : 1 ) * self::product_sites( $product );
 		}
 
 		return array(
@@ -1858,6 +1876,28 @@ class DataChat_Licence_Endpoint {
 			// No term, or nothing on record: no end date, as for a lifetime.
 			'expires'    => $days > 0 && $ends > 0 ? gmdate( 'Y-m-d', $ends ) : '',
 		);
+	}
+
+	/**
+	 * Sites one licence of a product covers: 1, unless the shop says more -
+	 * the Agency edition, say, covering ten client sites.
+	 *
+	 * @param string $product Product id.
+	 * @return int
+	 */
+	protected static function product_sites( $product ) {
+		$map   = defined( 'DATACHAT_PRODUCT_SITES' ) ? (string) DATACHAT_PRODUCT_SITES : (string) get_option( 'datachat_product_sites', '' );
+		$sites = self::SEATS;
+
+		foreach ( array_filter( array_map( 'trim', explode( ',', $map ) ) ) as $pair ) {
+			$parts = array_map( 'trim', explode( ':', $pair ) );
+
+			if ( 2 === count( $parts ) && (string) $parts[0] === (string) $product && (int) $parts[1] > 0 ) {
+				$sites = (int) $parts[1];
+			}
+		}
+
+		return $sites;
 	}
 
 	/**

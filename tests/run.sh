@@ -20,6 +20,8 @@ php tests/test-license-endpoint.php
 echo
 php tests/test-included-ai.php
 echo
+php tests/test-reports.php
+echo
 php tests/test-bootstrap.php
 echo
 php tests/test-direct-engine.php

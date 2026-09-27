@@ -30,6 +30,7 @@ class WWD_Admin {
 		add_action( 'admin_post_wwd_clear_log', array( $this, 'clear_log' ) );
 		add_action( 'admin_post_wwd_flush_cache', array( $this, 'flush_cache' ) );
 		add_action( 'admin_post_wwd_panel_action', array( $this, 'panel_action' ) );
+		add_action( 'admin_post_wwd_brand', array( $this, 'save_brand' ) );
 		add_action( 'add_meta_boxes', array( $this, 'meta_boxes' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( WWD_PLUGIN_FILE ), array( $this, 'action_links' ) );
 	}
@@ -46,12 +47,12 @@ class WWD_Admin {
 		$ask = (string) WWD_Settings::get( 'ask_capability', 'edit_posts' );
 
 		add_menu_page(
-			__( 'DataChat AI', 'datachat-ai' ),
-			__( 'DataChat', 'datachat-ai' ),
+			WWD_Brand::name(),
+			WWD_Brand::name(),
 			$ask,
 			'wwd',
 			array( $this, 'render_ask' ),
-			'dashicons-chart-area',
+			WWD_Brand::icon(),
 			58
 		);
 
@@ -77,6 +78,29 @@ class WWD_Admin {
 		echo $shortcodes->render_ask( array( 'height' => 340 ) ); // phpcs:ignore WordPress.Security.EscapeOutput
 
 		echo '</div>';
+	}
+
+	/**
+	 * Store the white-label name and icon.
+	 *
+	 * @return void
+	 */
+	public function save_brand() {
+		check_admin_referer( 'wwd_brand' );
+
+		if ( ! current_user_can( 'manage_options' ) || ! WWD_Brand::available() ) {
+			wp_die( esc_html__( 'White label comes with the Agency edition.', 'datachat-ai' ) );
+		}
+
+		WWD_Brand::save(
+			array(
+				'name' => isset( $_POST['brand_name'] ) ? sanitize_text_field( wp_unslash( $_POST['brand_name'] ) ) : '',
+				'icon' => isset( $_POST['brand_icon'] ) ? esc_url_raw( wp_unslash( $_POST['brand_icon'] ) ) : '',
+			)
+		);
+
+		wp_safe_redirect( admin_url( 'admin.php?page=wwd-settings&updated=1' ) );
+		exit;
 	}
 
 	/**
@@ -120,7 +144,20 @@ class WWD_Admin {
 			echo '</ul>';
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a status flag from our own redirect.
+		$wwd_report = isset( $_GET['wwd_report'] ) ? sanitize_key( wp_unslash( $_GET['wwd_report'] ) ) : '';
+
+		if ( 'saved' === $wwd_report ) {
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Email report saved.', 'datachat-ai' ) . '</p></div>';
+		} elseif ( 'sent' === $wwd_report ) {
+			echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__( 'Test report sent to your email.', 'datachat-ai' ) . '</p></div>';
+		} elseif ( 'failed' === $wwd_report ) {
+			echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__( 'The report could not be sent. Check that this site can send email.', 'datachat-ai' ) . '</p></div>';
+		}
+
 		echo wwd()->shortcodes()->render_dashboard( array( 'id' => $current ) ); // phpcs:ignore WordPress.Security.EscapeOutput
+
+		echo WWD_Reports::form( $current ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts.
 
 		printf(
 			'<p class="description"><a href="%1$s">%2$s</a> · <code>[wren_dashboard id="%3$d"]</code></p>',

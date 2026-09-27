@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.4.0
+Stable tag: 2.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,14 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.5.0 =
+* Scheduled email reports (Pro and Agency). Under any dashboard, choose daily, weekly or monthly,
+  the hour and who gets it: the panels are re-run and arrive as figures, bar lists and tables that
+  every email client shows. No model call is spent on them. "Send a test to me now" checks it.
+* White label (Agency). Rename the plugin and change its menu icon for your clients: the admin
+  menu, the screens and the email reports carry your name instead.
+* Agency licences can cover several sites; the shop decides how many.
 
 = 2.4.0 =
 * Pro comes with a model. A Pro licence asks questions through the shop that sold it, so there

@@ -341,8 +341,26 @@ dietro il filtro `wwd_is_licensed`: le build a pagamento aggiungono un file,
 | Edizione | Cartella | Licenza |
 |---|---|---|
 | Free | `datachat-ai` | nessuna, 2 pannelli salvati |
-| Pro | `datachat-ai-pro` | chiave, pannelli illimitati, **AI inclusa** (nessuna API key) |
-| Agency | `datachat-ai-agency` | chiave, pannelli illimitati, API key propria |
+| Pro | `datachat-ai-pro` | chiave, pannelli illimitati, **AI inclusa** (nessuna API key), report email |
+| Agency | `datachat-ai-agency` | chiave, pannelli illimitati, API key propria, report email, white label, più siti per licenza |
+
+### Report via email (Pro e Agency)
+
+Sotto ogni dashboard: giornaliero, settimanale o mensile, ora e destinatari.
+Un cron orario (`wwd_reports_tick`) rilancia l'SQL salvato dei pannelli — nessuna
+chiamata al modello — e manda un'email con cifre, liste a barre e tabelle in HTML
+semplice (niente SVG, che i client email non mostrano). Serve che il sito sappia
+mandare email (un plugin SMTP di solito).
+
+### White label (Agency)
+
+Impostazioni → White label: nome e icona del menu. Cambiano il menu, i titoli delle
+schermate e la firma dei report. Senza licenza Agency attiva si torna a "DataChat".
+
+### Più siti per licenza
+
+Sul negozio, Strumenti → DataChat licences → *Sites per licence*, per esempio
+`5764:10`: ogni licenza di quel prodotto copre 10 siti (una quantità di 2 → 20).
 
 ### Rinnovi
 

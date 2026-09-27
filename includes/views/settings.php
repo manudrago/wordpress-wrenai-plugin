@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
 $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_posts', 'edit_pages', 'manage_options' );
 ?>
 <div class="wrap wwd-wrap">
-	<h1><?php esc_html_e( 'DataChat AI', 'datachat-ai' ); ?></h1>
+	<h1><?php echo esc_html( WWD_Brand::name() ); ?></h1>
 
 	<?php if ( 'license' === $updated ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Licence updated.', 'datachat-ai' ); ?></p></div>
@@ -85,6 +85,34 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 			<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=wwd-schema' ) ); ?>"><?php esc_html_e( 'Data & schema', 'datachat-ai' ); ?></a>
 		</div>
 	</div>
+
+	<?php if ( 'agency' === WWD_License::edition() ) : ?>
+		<?php $wwd_brand = WWD_Brand::stored(); ?>
+		<div class="wwd-pair-card">
+			<h2><?php esc_html_e( 'White label', 'datachat-ai' ); ?></h2>
+			<?php if ( ! WWD_Brand::available() ) : ?>
+				<p class="description"><?php esc_html_e( 'Activate your Agency licence below to rename the plugin for your clients.', 'datachat-ai' ); ?></p>
+			<?php else : ?>
+				<p class="description"><?php esc_html_e( 'The name and icon your clients see in the admin menu, on these screens and in email reports.', 'datachat-ai' ); ?></p>
+			<?php endif; ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="wwd_brand">
+				<?php wp_nonce_field( 'wwd_brand' ); ?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="wwd-brand-name"><?php esc_html_e( 'Name', 'datachat-ai' ); ?></label></th>
+						<td><input id="wwd-brand-name" name="brand_name" type="text" class="regular-text" value="<?php echo esc_attr( $wwd_brand['name'] ); ?>" placeholder="DataChat" <?php disabled( ! WWD_Brand::available() ); ?>></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wwd-brand-icon"><?php esc_html_e( 'Menu icon URL', 'datachat-ai' ); ?></label></th>
+						<td><input id="wwd-brand-icon" name="brand_icon" type="url" class="regular-text code" value="<?php echo esc_attr( $wwd_brand['icon'] ); ?>" placeholder="https://…/icon-20x20.png" <?php disabled( ! WWD_Brand::available() ); ?>>
+						<p class="description"><?php esc_html_e( 'Optional. A 20×20 image; empty keeps the chart icon.', 'datachat-ai' ); ?></p></td>
+					</tr>
+				</table>
+				<?php submit_button( __( 'Save white label', 'datachat-ai' ), 'secondary', 'submit', false, WWD_Brand::available() ? array() : array( 'disabled' => 'disabled' ) ); ?>
+			</form>
+		</div>
+	<?php endif; ?>
 
 	<?php if ( WWD_License::is_paid_edition() ) : ?>
 		<?php $wwd_license = WWD_License::state(); ?>
