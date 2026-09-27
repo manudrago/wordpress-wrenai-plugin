@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       DataChat Licence Endpoint
  * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.4.0
+ * Version:           1.5.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -92,6 +92,29 @@ class DataChat_Licence_Endpoint {
 	const STALE = 60 * DAY_IN_SECONDS;
 
 	/**
+	 * Model calls a Pro licence gets each calendar month, unless the shop says
+	 * otherwise. One question is two calls - the SQL, then the chart - so this
+	 * is three hundred questions.
+	 */
+	const AI_CALLS = 600;
+
+	/**
+	 * The model Pro questions go to, unless the shop picks another.
+	 */
+	const AI_MODEL = 'gpt-4.1-mini';
+
+	/**
+	 * Calls one licence may make in a minute. A person asking questions makes a
+	 * handful; a script burning the allowance makes hundreds.
+	 */
+	const AI_BURST = 20;
+
+	/**
+	 * Where the monthly count per licence is kept.
+	 */
+	const AI_USAGE = 'datachat_ai_usage';
+
+	/**
 	 * What SLKWoo encrypts its feed with.
 	 */
 	const CIPHER = 'aes-256-cfb';
@@ -134,6 +157,7 @@ class DataChat_Licence_Endpoint {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 		add_filter( 'rest_post_dispatch', array( __CLASS__, 'hide_own_keys' ), 10, 3 );
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+		add_action( 'admin_post_datachat_licence_settings', array( __CLASS__, 'save_settings' ) );
 	}
 
 	/**
@@ -189,6 +213,8 @@ class DataChat_Licence_Endpoint {
 			esc_attr( $key )
 		);
 		echo '</form>';
+
+		self::settings_form();
 
 		echo '<h2>Report</h2>';
 		echo '<textarea readonly rows="22" style="width:100%;font-family:monospace;font-size:12px">';
@@ -257,6 +283,29 @@ class DataChat_Licence_Endpoint {
 			)
 		);
 
+		// The model that comes with Pro, relayed with this shop's API key. It
+		// speaks the OpenAI chat-completions shape, so the plugin talks to it
+		// exactly as it talks to any provider. The licence is the credential.
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/ai/chat/completions',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'ai_chat' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/ai/models',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'ai_models' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
 		// Says where a key was found and what surrounds it, so the lookup can
 		// be tuned to how this shop actually stores them.
 		register_rest_route(
@@ -297,63 +346,68 @@ class DataChat_Licence_Endpoint {
 			return self::answer( array( 'status' => 'invalid', 'message' => 'No licence key given.' ), $domain, $nonce );
 		}
 
+		list( $verdict, $found ) = self::verdict( $key );
+
+		if ( 'valid' === $verdict['status'] ) {
+			return self::answer( $verdict, $domain, $nonce, $key, $found );
+		}
+
+		return self::answer( $verdict, $domain, $nonce );
+	}
+
+	/**
+	 * Whether a key is good, before any question of which site holds it.
+	 *
+	 * @param string $key Licence key.
+	 * @return array Two items: the answer so far, and where the key was found.
+	 */
+	protected static function verdict( $key ) {
 		$found = self::find( $key );
 
 		if ( ! $found ) {
-			return self::answer( array( 'status' => 'invalid', 'message' => 'Unknown licence key.' ), $domain, $nonce );
+			return array( array( 'status' => 'invalid', 'message' => 'Unknown licence key.' ), array() );
 		}
 
 		// A key still in SLKWoo's feed is a live key: the feed drops them when
 		// they expire. There may be no order to look at, so this stands alone.
 		if ( empty( $found['order_id'] ) ) {
-			return self::answer(
+			return array(
 				array(
 					'status'  => 'valid',
 					'expires' => isset( $found['expires'] ) ? (string) $found['expires'] : '',
 				),
-				$domain,
-				$nonce,
-				$key,
-				$found
+				$found,
 			);
 		}
 
 		$order = function_exists( 'wc_get_order' ) ? wc_get_order( $found['order_id'] ) : null;
 
 		if ( ! $order ) {
-			return self::answer( array( 'status' => 'invalid', 'message' => 'The order behind this key no longer exists.' ), $domain, $nonce );
+			return array( array( 'status' => 'invalid', 'message' => 'The order behind this key no longer exists.' ), $found );
 		}
 
 		$status = $order->get_status();
 
 		if ( ! in_array( $status, self::PAID, true ) ) {
-			return self::answer(
+			return array(
 				array(
 					'status'  => 'invalid',
 					'message' => sprintf( 'The order behind this key is %s.', $status ),
 				),
-				$domain,
-				$nonce
+				$found,
 			);
 		}
 
 		$expires = self::expiry( $found['order_id'] );
 
 		if ( $expires && strtotime( $expires ) < time() ) {
-			return self::answer(
+			return array(
 				array( 'status' => 'expired', 'expires' => $expires, 'message' => 'This licence has expired.' ),
-				$domain,
-				$nonce
+				$found,
 			);
 		}
 
-		return self::answer(
-			array( 'status' => 'valid', 'expires' => $expires ),
-			$domain,
-			$nonce,
-			$key,
-			$found
-		);
+		return array( array( 'status' => 'valid', 'expires' => $expires ), $found );
 	}
 
 	/**
@@ -807,7 +861,7 @@ class DataChat_Licence_Endpoint {
 
 		$row = $wpdb->get_row( // phpcs:ignore WordPress.DB
 			$wpdb->prepare(
-				"SELECT i.order_id, m.meta_key
+				"SELECT i.order_id, i.order_item_id, m.meta_key
 				 FROM {$wpdb->prefix}woocommerce_order_itemmeta m
 				 INNER JOIN {$wpdb->prefix}woocommerce_order_items i ON i.order_item_id = m.order_item_id
 				 WHERE m.meta_value = %s LIMIT 1",
@@ -821,6 +875,7 @@ class DataChat_Licence_Endpoint {
 				'order_id' => (int) $row['order_id'],
 				'where'    => 'order_itemmeta',
 				'meta_key' => $row['meta_key'],
+				'item_id'  => isset( $row['order_item_id'] ) ? (int) $row['order_item_id'] : 0,
 			);
 		}
 
@@ -1376,6 +1431,559 @@ class DataChat_Licence_Endpoint {
 		 * @param int    $order_id Order id.
 		 */
 		return (string) apply_filters( 'datachat_license_expiry', '', $order_id );
+	}
+
+	// -----------------------------------------------------------------------
+	// Settings: which products are DataChat, which include the model, and the
+	// model itself. On the Tools page, so nothing has to go in wp-config.php.
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Print the settings form and this month's use.
+	 *
+	 * @return void
+	 */
+	protected static function settings_form() {
+		$saved = isset( $_GET['datachat_saved'] ); // phpcs:ignore WordPress.Security.NonceVerification
+
+		echo '<h2>Settings</h2>';
+
+		if ( $saved ) {
+			echo '<div class="notice notice-success inline"><p>Saved.</p></div>';
+		}
+
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		echo '<input type="hidden" name="action" value="datachat_licence_settings">';
+		wp_nonce_field( 'datachat_licence_settings' );
+		echo '<table class="form-table" role="presentation">';
+
+		$locked = defined( 'DATACHAT_PRODUCT_IDS' );
+		printf(
+			'<tr><th scope="row"><label for="dc-products">DataChat products</label></th><td><input id="dc-products" name="datachat_product_ids" type="text" class="regular-text code" value="%s" %s><p class="description">Product ids of every paid DataChat edition, comma-separated. Their keys are checked here and kept out of the public SLKWoo feed; other products (Qomon) are left alone.%s</p></td></tr>',
+			esc_attr( implode( ',', self::own_products() ) ),
+			$locked ? 'readonly' : '',
+			$locked ? ' Set in wp-config.php.' : ''
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-ai-products">Products with AI included</label></th><td><input id="dc-ai-products" name="datachat_ai_product_ids" type="text" class="regular-text code" value="%s"><p class="description">The editions whose licence can ask this shop\'s model (Pro). A licence for any other product brings its own key.</p></td></tr>',
+			esc_attr( implode( ',', self::ai_products() ) )
+		);
+
+		$has_key = '' !== self::openai_key();
+		printf(
+			'<tr><th scope="row"><label for="dc-openai">OpenAI API key</label></th><td><input id="dc-openai" name="datachat_openai_api_key" type="password" class="regular-text code" value="" autocomplete="new-password" placeholder="%s" %s><p class="description">%s</p></td></tr>',
+			$has_key ? esc_attr( 'Saved - leave empty to keep it' ) : 'sk-...',
+			defined( 'DATACHAT_OPENAI_API_KEY' ) ? 'readonly' : '',
+			defined( 'DATACHAT_OPENAI_API_KEY' ) ? 'Set in wp-config.php.' : ( $has_key ? 'A key is saved. It is never shown again; type a new one to replace it.' : 'Pro questions are answered with this key. It stays on this server and is never sent to a customer.' )
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-model">Model</label></th><td><input id="dc-model" name="datachat_ai_model" type="text" class="regular-text code" value="%s" placeholder="%s"><p class="description">Whatever a customer\'s site asks for, this is the model that answers.</p></td></tr>',
+			esc_attr( (string) get_option( 'datachat_ai_model', '' ) ),
+			esc_attr( self::AI_MODEL )
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-calls">Model calls per licence per month</label></th><td><input id="dc-calls" name="datachat_ai_monthly_calls" type="number" min="0" step="10" class="small-text" value="%d"><p class="description">A question is two calls, so %d is about %d questions.</p></td></tr>',
+			(int) self::ai_allowance(),
+			(int) self::ai_allowance(),
+			(int) floor( self::ai_allowance() / 2 )
+		);
+
+		echo '</table>';
+		submit_button( 'Save settings' );
+		echo '</form>';
+
+		$usage = self::ai_usage();
+		$month = gmdate( 'Y-m' );
+
+		echo '<h2>AI use this month</h2>';
+
+		$rows = array();
+
+		foreach ( $usage as $slot => $use ) {
+			if ( isset( $use['month'] ) && $month === $use['month'] ) {
+				$rows[] = sprintf(
+					'<tr><td><code>%s…</code></td><td>%s</td><td>%d / %d</td></tr>',
+					esc_html( substr( (string) $slot, 0, 10 ) ),
+					esc_html( isset( $use['site'] ) ? (string) $use['site'] : '' ),
+					(int) $use['calls'],
+					(int) self::ai_allowance()
+				);
+			}
+		}
+
+		if ( $rows ) {
+			echo '<table class="widefat striped" style="max-width:720px"><thead><tr><th>Licence (hashed)</th><th>Site</th><th>Calls</th></tr></thead><tbody>' . implode( '', $rows ) . '</tbody></table>'; // phpcs:ignore WordPress.Security.EscapeOutput
+		} else {
+			echo '<p>No questions yet this month.</p>';
+		}
+	}
+
+	/**
+	 * Store the settings.
+	 *
+	 * @return void
+	 */
+	public static function save_settings() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Administrator access required.', 'default' ) );
+		}
+
+		check_admin_referer( 'datachat_licence_settings' );
+
+		$ids = static function ( $field ) {
+			$raw = isset( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+			return implode( ',', array_filter( array_map( 'absint', explode( ',', $raw ) ) ) );
+		};
+
+		if ( ! defined( 'DATACHAT_PRODUCT_IDS' ) ) {
+			update_option( 'datachat_product_ids', $ids( 'datachat_product_ids' ), false );
+		}
+
+		update_option( 'datachat_ai_product_ids', $ids( 'datachat_ai_product_ids' ), false );
+
+		$key = isset( $_POST['datachat_openai_api_key'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['datachat_openai_api_key'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+		if ( '' !== $key && ! defined( 'DATACHAT_OPENAI_API_KEY' ) ) {
+			update_option( 'datachat_openai_api_key', $key, false );
+		}
+
+		$model = isset( $_POST['datachat_ai_model'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['datachat_ai_model'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		update_option( 'datachat_ai_model', $model, false );
+
+		if ( isset( $_POST['datachat_ai_monthly_calls'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			update_option( 'datachat_ai_monthly_calls', absint( $_POST['datachat_ai_monthly_calls'] ), false ); // phpcs:ignore WordPress.Security.NonceVerification
+		}
+
+		wp_safe_redirect( add_query_arg( array( 'page' => 'datachat-licence', 'datachat_saved' => 1 ), admin_url( 'tools.php' ) ) );
+		exit;
+	}
+
+	// -----------------------------------------------------------------------
+	// The model included with Pro.
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Relay one chat-completions request to OpenAI for a Pro licence.
+	 *
+	 * The customer's site never sees this shop's API key, and this shop never
+	 * sees the customer's data beyond what the question itself carries - the
+	 * schema and a few sample rows. Nothing of it is stored here: only a count.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function ai_chat( WP_REST_Request $request ) {
+		$key  = self::bearer( $request );
+		$site = self::normalise( (string) $request->get_header( 'x_datachat_site' ) );
+		$gate = self::ai_gate( $key, $site );
+
+		if ( true !== $gate ) {
+			return $gate;
+		}
+
+		$slot = hash( 'sha256', $key );
+
+		if ( ! self::ai_burst_ok( $slot ) ) {
+			return self::ai_error( 429, 'Too many questions in a minute. Wait a moment and ask again.', 'rate_limit' );
+		}
+
+		$used = self::ai_used( $slot );
+
+		if ( $used >= self::ai_allowance() ) {
+			return self::ai_error(
+				402,
+				sprintf(
+					'Your licence\'s %d questions for this month are used up. They renew on the 1st; to keep going now, choose another provider under DataChat → Settings and paste your own API key.',
+					(int) floor( self::ai_allowance() / 2 )
+				),
+				'quota_exceeded'
+			);
+		}
+
+		$body = self::ai_body( (array) $request->get_json_params() );
+
+		if ( empty( $body['messages'] ) ) {
+			return self::ai_error( 400, 'No messages to answer.', 'invalid_request' );
+		}
+
+		$response = wp_remote_post(
+			'https://api.openai.com/v1/chat/completions',
+			array(
+				'timeout' => 90,
+				'headers' => array(
+					'Content-Type'  => 'application/json',
+					'Authorization' => 'Bearer ' . self::openai_key(),
+				),
+				'body'    => wp_json_encode( $body ),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return self::ai_error( 502, 'The AI service could not be reached. Try again in a moment.', 'upstream_unreachable' );
+		}
+
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$data = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		$data = is_array( $data ) ? $data : array();
+
+		if ( 401 === $code || 403 === $code ) {
+			// The shop's own key was refused. That is ours to fix, and saying
+			// "your key was refused" to a customer who typed no key would only
+			// send them looking in the wrong place.
+			return self::ai_error( 503, 'The AI included with your licence is temporarily unavailable. We have been notified; you can use your own key meanwhile.', 'upstream_auth' );
+		}
+
+		if ( $code >= 200 && $code < 300 ) {
+			self::ai_count( $slot, $site );
+
+			// Which model answered is the shop's business.
+			$data['model'] = 'included';
+		}
+
+		// Anything else - a parameter this model will not take, a context too
+		// long - goes back as the provider worded it, because the plugin
+		// already knows how to adapt to those.
+		return new WP_REST_Response( $data, $code ? $code : 502 );
+	}
+
+	/**
+	 * The one model there is, for a site that asks what it can use.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function ai_models( WP_REST_Request $request ) {
+		unset( $request );
+
+		return new WP_REST_Response(
+			array(
+				'object' => 'list',
+				'data'   => array( array( 'id' => 'included', 'object' => 'model' ) ),
+			),
+			200
+		);
+	}
+
+	/**
+	 * Whether this key, on this site, may ask the model. True, or the refusal.
+	 *
+	 * @param string $key  Licence key.
+	 * @param string $site Normalised domain asking.
+	 * @return true|WP_REST_Response
+	 */
+	protected static function ai_gate( $key, $site ) {
+		if ( '' === $key ) {
+			return self::ai_error( 401, 'No licence key was sent. Enter your key under DataChat → Settings → Licence.', 'no_licence' );
+		}
+
+		if ( '' === self::openai_key() ) {
+			return self::ai_error( 503, 'The AI included with Pro is not switched on yet. Use your own key under DataChat → Settings meanwhile.', 'not_configured' );
+		}
+
+		$slot   = hash( 'sha256', $key );
+		$cached = get_transient( 'datachat_ai_ok_' . $slot );
+
+		if ( ! is_array( $cached ) ) {
+			if ( ! self::allowed() ) {
+				return self::ai_error( 429, 'Too many requests from this address. Try again later.', 'rate_limit' );
+			}
+
+			list( $verdict, $found ) = self::verdict( $key );
+
+			$cached = array(
+				'status'  => (string) $verdict['status'],
+				'message' => isset( $verdict['message'] ) ? (string) $verdict['message'] : '',
+				'product' => $found ? self::product_of( $found ) : '',
+			);
+
+			// Ten minutes: long enough that a question does not cost a feed
+			// decryption per call, short enough that a refund bites quickly.
+			set_transient( 'datachat_ai_ok_' . $slot, $cached, 10 * MINUTE_IN_SECONDS );
+		}
+
+		if ( 'valid' !== $cached['status'] ) {
+			return self::ai_error( 403, '' !== $cached['message'] ? $cached['message'] : 'This licence is not valid.', 'invalid_licence' );
+		}
+
+		if ( ! in_array( (string) $cached['product'], self::ai_products(), true ) ) {
+			return self::ai_error( 403, 'This licence does not include the AI service - it is the edition that brings its own key. Choose a provider under DataChat → Settings and paste your API key.', 'not_included' );
+		}
+
+		$all = self::sites();
+
+		if ( '' === $site || ! isset( $all[ $slot ][ $site ] ) ) {
+			return self::ai_error(
+				403,
+				sprintf( 'This licence is not active on %s. Activate it under DataChat → Settings → Licence first.', '' !== $site ? $site : 'this site' ),
+				'not_activated'
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * The product a key was sold as.
+	 *
+	 * @param array $found Where the key was found.
+	 * @return string Product id, or empty when it cannot be told.
+	 */
+	protected static function product_of( array $found ) {
+		if ( ! empty( $found['product_id'] ) ) {
+			return (string) $found['product_id'];
+		}
+
+		if ( ! empty( $found['item_id'] ) && function_exists( 'wc_get_order_item_meta' ) ) {
+			$product = wc_get_order_item_meta( (int) $found['item_id'], '_product_id', true );
+
+			if ( $product ) {
+				return (string) $product;
+			}
+		}
+
+		$order = ! empty( $found['order_id'] ) && function_exists( 'wc_get_order' ) ? wc_get_order( $found['order_id'] ) : null;
+
+		if ( ! $order || ! method_exists( $order, 'get_items' ) ) {
+			return '';
+		}
+
+		// A key stored on the order rather than a line: if one line is a
+		// DataChat edition, that is what was sold.
+		$first = '';
+
+		foreach ( $order->get_items() as $item ) {
+			$product = method_exists( $item, 'get_product_id' ) ? (string) $item->get_product_id() : '';
+
+			if ( in_array( $product, self::own_products(), true ) ) {
+				return $product;
+			}
+
+			if ( '' === $first ) {
+				$first = $product;
+			}
+		}
+
+		return $first;
+	}
+
+	/**
+	 * The request as OpenAI will get it: this shop's model, a sane budget, and
+	 * nothing but the fields a chat completion takes.
+	 *
+	 * @param array $in What the site sent.
+	 * @return array
+	 */
+	protected static function ai_body( array $in ) {
+		$body = array( 'model' => self::ai_model() );
+
+		$messages = isset( $in['messages'] ) && is_array( $in['messages'] ) ? $in['messages'] : array();
+		$clean    = array();
+
+		foreach ( $messages as $message ) {
+			if ( ! is_array( $message ) || ! isset( $message['role'], $message['content'] ) || ! is_string( $message['content'] ) ) {
+				continue;
+			}
+
+			if ( ! in_array( $message['role'], array( 'system', 'user', 'assistant' ), true ) ) {
+				continue;
+			}
+
+			$clean[] = array(
+				'role'    => $message['role'],
+				'content' => $message['content'],
+			);
+		}
+
+		$body['messages'] = $clean;
+
+		foreach ( array( 'max_tokens', 'max_completion_tokens' ) as $budget ) {
+			if ( isset( $in[ $budget ] ) ) {
+				$body[ $budget ] = max( 16, min( 8192, (int) $in[ $budget ] ) );
+			}
+		}
+
+		if ( isset( $in['temperature'] ) ) {
+			$body['temperature'] = max( 0, min( 1, (float) $in['temperature'] ) );
+		}
+
+		if ( isset( $in['response_format']['type'] ) && 'json_object' === $in['response_format']['type'] ) {
+			$body['response_format'] = array( 'type' => 'json_object' );
+		}
+
+		return $body;
+	}
+
+	/**
+	 * The licence key a request carries.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return string
+	 */
+	protected static function bearer( WP_REST_Request $request ) {
+		$own = trim( (string) $request->get_header( 'x_datachat_licence' ) );
+
+		if ( '' !== $own ) {
+			return $own;
+		}
+
+		$auth = (string) $request->get_header( 'authorization' );
+
+		return preg_match( '/^Bearer\s+(.+)$/i', trim( $auth ), $m ) ? trim( $m[1] ) : '';
+	}
+
+	/**
+	 * An error in the shape OpenAI uses, which the plugin already reads.
+	 *
+	 * @param int    $code    HTTP status.
+	 * @param string $message For the customer.
+	 * @param string $type    Machine-readable reason.
+	 * @return WP_REST_Response
+	 */
+	protected static function ai_error( $code, $message, $type ) {
+		return new WP_REST_Response(
+			array(
+				'error' => array(
+					'message' => $message,
+					'type'    => $type,
+					'code'    => $type,
+				),
+			),
+			$code
+		);
+	}
+
+	/**
+	 * Every licence's count for the month.
+	 *
+	 * @return array
+	 */
+	protected static function ai_usage() {
+		$stored = get_option( self::AI_USAGE, array() );
+
+		return is_array( $stored ) ? $stored : array();
+	}
+
+	/**
+	 * Calls this licence has made this month.
+	 *
+	 * @param string $slot Hashed key.
+	 * @return int
+	 */
+	protected static function ai_used( $slot ) {
+		$usage = self::ai_usage();
+
+		if ( ! isset( $usage[ $slot ]['month'] ) || gmdate( 'Y-m' ) !== $usage[ $slot ]['month'] ) {
+			return 0;
+		}
+
+		return (int) $usage[ $slot ]['calls'];
+	}
+
+	/**
+	 * Count one answered call.
+	 *
+	 * @param string $slot Hashed key.
+	 * @param string $site Domain.
+	 * @return void
+	 */
+	protected static function ai_count( $slot, $site ) {
+		$usage = self::ai_usage();
+		$month = gmdate( 'Y-m' );
+
+		// Last month's counts are of no further use.
+		foreach ( $usage as $known => $use ) {
+			if ( ! isset( $use['month'] ) || $month !== $use['month'] ) {
+				unset( $usage[ $known ] );
+			}
+		}
+
+		$usage[ $slot ] = array(
+			'month' => $month,
+			'calls' => ( isset( $usage[ $slot ]['calls'] ) ? (int) $usage[ $slot ]['calls'] : 0 ) + 1,
+			'site'  => $site,
+		);
+
+		update_option( self::AI_USAGE, $usage, false );
+	}
+
+	/**
+	 * Whether this licence is within its per-minute burst.
+	 *
+	 * @param string $slot Hashed key.
+	 * @return bool
+	 */
+	protected static function ai_burst_ok( $slot ) {
+		$name = 'datachat_ai_burst_' . substr( $slot, 0, 20 );
+		$hits = (int) get_transient( $name );
+
+		if ( $hits >= self::AI_BURST ) {
+			return false;
+		}
+
+		set_transient( $name, $hits + 1, MINUTE_IN_SECONDS );
+
+		return true;
+	}
+
+	/**
+	 * Calls per licence per month.
+	 *
+	 * @return int
+	 */
+	protected static function ai_allowance() {
+		$stored = get_option( 'datachat_ai_monthly_calls', '' );
+		$calls  = '' === $stored || null === $stored || false === $stored ? self::AI_CALLS : (int) $stored;
+
+		/**
+		 * Filters the monthly calls a Pro licence gets.
+		 *
+		 * @param int $calls Calls.
+		 */
+		return max( 0, (int) apply_filters( 'datachat_ai_monthly_calls', $calls ) );
+	}
+
+	/**
+	 * The model that answers.
+	 *
+	 * @return string
+	 */
+	protected static function ai_model() {
+		$model = defined( 'DATACHAT_AI_MODEL' ) ? (string) DATACHAT_AI_MODEL : trim( (string) get_option( 'datachat_ai_model', '' ) );
+
+		return '' !== $model ? $model : self::AI_MODEL;
+	}
+
+	/**
+	 * This shop's OpenAI key. Never printed, never sent anywhere but OpenAI.
+	 *
+	 * @return string
+	 */
+	protected static function openai_key() {
+		$key = defined( 'DATACHAT_OPENAI_API_KEY' ) ? (string) DATACHAT_OPENAI_API_KEY : (string) get_option( 'datachat_openai_api_key', '' );
+
+		return trim( $key );
+	}
+
+	/**
+	 * The products whose licence includes the model.
+	 *
+	 * @return array Product ids as strings.
+	 */
+	protected static function ai_products() {
+		$products = defined( 'DATACHAT_AI_PRODUCT_IDS' ) ? (string) DATACHAT_AI_PRODUCT_IDS : (string) get_option( 'datachat_ai_product_ids', '' );
+
+		/**
+		 * Filters which products include the model.
+		 *
+		 * @param string $products Comma-separated product ids.
+		 */
+		$products = (string) apply_filters( 'datachat_ai_products', $products );
+
+		return array_values( array_filter( array_map( 'trim', explode( ',', $products ) ) ) );
 	}
 
 	/**

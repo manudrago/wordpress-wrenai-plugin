@@ -64,7 +64,22 @@ class WWD_Model_Client {
 	 * @return array
 	 */
 	public static function providers() {
-		return array(
+		$providers = array();
+
+		// Pro carries a model with it: the shop that sold the licence answers
+		// on the customer's behalf, so there is no key to create anywhere.
+		// Agency and the free edition bring their own key, and never see this.
+		if ( class_exists( 'WWD_License' ) && 'pro' === WWD_License::edition() ) {
+			$providers['included'] = array(
+				'label' => __( 'DataChat AI - included with your Pro licence (no key needed)', 'datachat-ai' ),
+				'base'  => WWD_License::ai_base(),
+				'model' => 'included',
+				'keys'  => '',
+				'shape' => 'openai',
+			);
+		}
+
+		return $providers + array(
 			'google' => array(
 				'label' => __( 'Google AI Studio (free tier)', 'datachat-ai' ),
 				'base'  => 'https://generativelanguage.googleapis.com/v1beta',
@@ -133,6 +148,26 @@ class WWD_Model_Client {
 		$this->timeout = isset( $overrides['timeout'] )
 			? (int) $overrides['timeout']
 			: (int) WWD_Settings::get( 'request_timeout', 30 );
+
+		// The included model is the shop's to choose, and the licence is the
+		// only credential it takes. Nothing typed in Settings applies to it.
+		if ( 'included' === $this->provider ) {
+			$state         = WWD_License::state();
+			$this->api_key = (string) $state['key'];
+			$this->model   = 'included';
+			$this->base    = untrailingslashit( WWD_License::ai_base() );
+			// The shop relays to the model, so give it the time a model needs.
+			$this->timeout = max( 60, $this->timeout );
+		}
+	}
+
+	/**
+	 * Whether this client uses the model that comes with a Pro licence.
+	 *
+	 * @return bool
+	 */
+	public function is_included() {
+		return 'included' === $this->provider;
 	}
 
 	/**
@@ -167,6 +202,13 @@ class WWD_Model_Client {
 	 * @return array|WP_Error Decoded JSON object.
 	 */
 	public function complete( $system, $user, $max_out = 2048 ) {
+		if ( ! $this->is_ready() && $this->is_included() ) {
+			return new WP_Error(
+				'wwd_included_no_licence',
+				__( 'The AI included with Pro needs an active licence. Enter your key under DataChat → Settings → Licence.', 'datachat-ai' )
+			);
+		}
+
 		if ( ! $this->is_ready() ) {
 			return new WP_Error(
 				'wwd_model_unconfigured',
@@ -449,6 +491,11 @@ class WWD_Model_Client {
 	 *                        returns them.
 	 */
 	public function models() {
+		// One model, the shop's choice: nothing to list.
+		if ( $this->is_included() ) {
+			return array( 'included' );
+		}
+
 		if ( '' === $this->base ) {
 			return new WP_Error(
 				'wwd_model_unconfigured',
@@ -665,6 +712,14 @@ class WWD_Model_Client {
 			$headers['Authorization'] = 'Bearer ' . $this->api_key;
 		}
 
+		if ( $this->is_included() ) {
+			// Some hosts drop the Authorization header before PHP sees it, so
+			// the licence travels in a header of its own as well, with the
+			// site it is being used on.
+			$headers['X-DataChat-Licence'] = $this->api_key;
+			$headers['X-DataChat-Site']    = WWD_License::domain();
+		}
+
 		$body = array( 'model' => $this->model );
 
 		if ( $dialect['temperature'] ) {
@@ -743,6 +798,13 @@ class WWD_Model_Client {
 
 		if ( '' === $detail ) {
 			$detail = trim( wp_strip_all_tags( substr( $body, 0, 200 ) ) );
+		}
+
+		// The shop words its refusals for the customer - licence not active
+		// here, monthly questions used up - so they are shown as they are,
+		// not dressed up as a provider refusing a key nobody typed.
+		if ( $this->is_included() && in_array( (int) $code, array( 401, 402, 403 ), true ) ) {
+			return new WP_Error( 'wwd_included_refused', '' !== $detail ? $detail : __( 'The AI included with your licence is not available right now.', 'datachat-ai' ) );
 		}
 
 		if ( 401 === $code || 403 === $code ) {

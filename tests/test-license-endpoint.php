@@ -212,6 +212,27 @@ class WP_REST_Request {
 	}
 
 	/**
+	 * One header, by WordPress's normalised name (lowercase, underscores).
+	 *
+	 * @param string $name Name.
+	 * @return string|null
+	 */
+	public function get_header( $name ) {
+		$headers = isset( $this->params['_headers'] ) ? (array) $this->params['_headers'] : array();
+
+		return isset( $headers[ $name ] ) ? $headers[ $name ] : null;
+	}
+
+	/**
+	 * The JSON body.
+	 *
+	 * @return array
+	 */
+	public function get_json_params() {
+		return isset( $this->params['_json'] ) ? (array) $this->params['_json'] : array();
+	}
+
+	/**
 	 * Route.
 	 *
 	 * @return string
@@ -699,6 +720,175 @@ check( 'and no private key', false === strpos( $raw, 'PRIVATE KEY' ) );
 $through_rest = DataChat_Licence_Endpoint::probe( new WP_REST_Request( array( 'key' => '' ) ) )->get_data();
 
 check( 'the route and the page report the same thing', array_keys( $through_rest ) === array_keys( $report ) );
+
+
+// ---------------------------------------------------------------------------
+// The model included with Pro: the shop relays to OpenAI for a Pro licence,
+// on the site that holds it, within a monthly allowance - and for nobody else.
+// ---------------------------------------------------------------------------
+
+/**
+ * Ask the relay as a customer's site would.
+ *
+ * @param string $key  Licence key.
+ * @param string $site Domain.
+ * @param array  $json Body.
+ * @param bool   $own  Send the key in X-DataChat-Licence rather than Authorization.
+ * @return WP_REST_Response
+ */
+function relay_ask( $key, $site, array $json = array(), $own = true ) {
+	$headers = array( 'x_datachat_site' => $site );
+
+	if ( $own ) {
+		$headers['x_datachat_licence'] = $key;
+	} else {
+		$headers['authorization'] = 'Bearer ' . $key;
+	}
+
+	return DataChat_Licence_Endpoint::ai_chat(
+		new WP_REST_Request(
+			array(
+				'_headers' => $headers,
+				'_json'    => $json ? $json : array(
+					'model'           => 'whatever-the-site-says',
+					'temperature'     => 0,
+					'max_tokens'      => 999999,
+					'response_format' => array( 'type' => 'json_object' ),
+					'messages'        => array(
+						array( 'role' => 'system', 'content' => 'You answer with JSON only.' ),
+						array( 'role' => 'user', 'content' => 'Reply with {"ok": true}' ),
+						array( 'role' => 'tool', 'content' => 'smuggled' ),
+					),
+				),
+			)
+		)
+	);
+}
+
+$openai_ok = array(
+	'status'   => 200,
+	'response' => array(
+		'model'   => 'gpt-4.1-mini-2025-04-14',
+		'choices' => array( array( 'message' => array( 'role' => 'assistant', 'content' => '{"ok": true}' ) ) ),
+	),
+);
+
+delete_transient( 'datachat_lic_' . md5( 'unknown' ) );
+delete_option( DataChat_Licence_Endpoint::SITES );
+delete_option( DataChat_Licence_Endpoint::AI_USAGE );
+delete_option( 'datachat_openai_api_key' );
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 0, 'where' => 'slkwoo_feed', 'expires' => '', 'product_id' => '7001' ) );
+add_test_filter( 'datachat_license_own_products', '7001,7002' );
+add_test_filter( 'datachat_ai_products', '7001' );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$off = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+
+check( 'without an OpenAI key the relay says it is not switched on', 503 === $off->status && 'not_configured' === $off->data['error']['code'], wp_json_encode( $off->data ) );
+check( 'and calls nobody', empty( WWD_Test_HTTP::$requests ) );
+
+update_option( 'datachat_openai_api_key', 'sk-shop-secret' );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$no_seat = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+
+check( 'a licence not yet activated on the site is refused', 403 === $no_seat->status && 'not_activated' === $no_seat->data['error']['code'], wp_json_encode( $no_seat->data ) );
+check( 'and told to activate it first', false !== strpos( $no_seat->data['error']['message'], 'pro-site.example' ) );
+check( 'without reaching OpenAI', empty( WWD_Test_HTTP::$requests ) );
+
+// The site activates, as the plugin does before anything else.
+$activation = ask_from( 'DCAI-AI-0001', 'pro-site.example' );
+check( 'activation takes the seat', 'valid' === $activation['status'], wp_json_encode( $activation ) );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$answered = relay_ask( 'DCAI-AI-0001', 'www.pro-site.example' );
+$sent     = WWD_Test_HTTP::$last;
+
+check( 'an activated Pro licence gets an answer', 200 === $answered->status, wp_json_encode( $answered->data ) );
+check( 'the model\'s answer comes back as OpenAI wrote it', '{"ok": true}' === $answered->data['choices'][0]['message']['content'] );
+check( 'without naming the shop\'s model', 'included' === $answered->data['model'] );
+check( 'the request goes to OpenAI', 'https://api.openai.com/v1/chat/completions' === $sent['url'] );
+check( 'with the shop\'s key', 'Bearer sk-shop-secret' === $sent['headers']['Authorization'] );
+check( 'on the shop\'s model, whatever the site asked for', DataChat_Licence_Endpoint::AI_MODEL === $sent['body']['model'], wp_json_encode( $sent['body']['model'] ) );
+check( 'with the budget capped', 8192 === $sent['body']['max_tokens'] );
+check( 'JSON mode passed through', 'json_object' === $sent['body']['response_format']['type'] );
+check( 'and only system, user and assistant messages', 2 === count( $sent['body']['messages'] ), wp_json_encode( $sent['body']['messages'] ) );
+check( 'the licence key never reaches OpenAI', false === strpos( wp_json_encode( $sent ), 'DCAI-AI-0001' ) );
+check( 'the call is counted', 1 === Shop_Probe::call( 'ai_used', array( hash( 'sha256', 'DCAI-AI-0001' ) ) ) );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+check( 'the key also works as a bearer token', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), false )->status );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$elsewhere = relay_ask( 'DCAI-AI-0001', 'someone-else.example' );
+check( 'the same key from another site is refused', 403 === $elsewhere->status && 'not_activated' === $elsewhere->data['error']['code'] );
+
+// An Agency licence brings its own key.
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 0, 'where' => 'slkwoo_feed', 'expires' => '', 'product_id' => '7002' ) );
+ask_from( 'DCAI-AGENCY-01', 'agency-site.example' );
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$agency = relay_ask( 'DCAI-AGENCY-01', 'agency-site.example' );
+
+check( 'an Agency licence is not given the shop\'s model', 403 === $agency->status && 'not_included' === $agency->data['error']['code'], wp_json_encode( $agency->data ) );
+check( 'and is told to bring its own key', false !== strpos( $agency->data['error']['message'], 'API key' ) );
+check( 'without reaching OpenAI', empty( WWD_Test_HTTP::$requests ) );
+
+// An unknown key.
+add_test_filter( 'datachat_license_lookup', null );
+add_test_filter( 'datachat_license_passphrase', '' );
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$unknown = relay_ask( 'DCAI-NOBODY-00', 'pro-site.example' );
+check( 'an unknown key is refused', 403 === $unknown->status && 'invalid_licence' === $unknown->data['error']['code'], wp_json_encode( $unknown->data ) );
+check( 'and no key is refused as such', 401 === relay_ask( '', 'pro-site.example' )->status );
+
+// The allowance.
+add_test_filter( 'datachat_license_lookup', array( 'order_id' => 0, 'where' => 'slkwoo_feed', 'expires' => '', 'product_id' => '7001' ) );
+add_test_filter( 'datachat_ai_monthly_calls', 3 );
+delete_transient( 'datachat_ai_burst_' . substr( hash( 'sha256', 'DCAI-AI-0001' ), 0, 20 ) );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+check( 'the third call of three is answered', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example' )->status );
+
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$spent = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+check( 'the fourth is refused with 402', 402 === $spent->status && 'quota_exceeded' === $spent->data['error']['code'], wp_json_encode( $spent->data ) );
+check( 'saying when it renews and how to go on', false !== strpos( $spent->data['error']['message'], 'renew' ) && false !== strpos( $spent->data['error']['message'], 'own API key' ) );
+check( 'without reaching OpenAI', empty( WWD_Test_HTTP::$requests ) );
+
+// Last month's use does not count.
+$usage = get_option( DataChat_Licence_Endpoint::AI_USAGE );
+$usage[ hash( 'sha256', 'DCAI-AI-0001' ) ]['month'] = '2001-01';
+update_option( DataChat_Licence_Endpoint::AI_USAGE, $usage );
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+check( 'a new month starts from zero', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example' )->status );
+check( 'and the old month is forgotten', 1 === Shop_Probe::call( 'ai_used', array( hash( 'sha256', 'DCAI-AI-0001' ) ) ) );
+add_test_filter( 'datachat_ai_monthly_calls', 600 );
+
+// Failures that are the shop's, not the customer's.
+WWD_Test_HTTP::queue( array( array( 'status' => 401, 'response' => array( 'error' => array( 'message' => 'Incorrect API key provided' ) ) ) ) );
+$bad_shop_key = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+check( 'OpenAI refusing the shop\'s key is not blamed on the customer', 503 === $bad_shop_key->status && false === strpos( $bad_shop_key->data['error']['message'], 'Incorrect API key' ), wp_json_encode( $bad_shop_key->data ) );
+
+WWD_Test_HTTP::queue( array( array( 'status' => 400, 'response' => array( 'error' => array( 'message' => "Unsupported parameter: 'max_tokens' is not supported with this model.", 'param' => 'max_tokens' ) ) ) ) );
+$dialect = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+check( 'a parameter complaint goes back as OpenAI worded it', 400 === $dialect->status && 'max_tokens' === $dialect->data['error']['param'] );
+check( 'and a failed call is not counted', 1 === Shop_Probe::call( 'ai_used', array( hash( 'sha256', 'DCAI-AI-0001' ) ) ) );
+
+// The burst limit.
+delete_transient( 'datachat_ai_burst_' . substr( hash( 'sha256', 'DCAI-AI-0001' ), 0, 20 ) );
+$burst = null;
+
+for ( $i = 0; $i <= DataChat_Licence_Endpoint::AI_BURST; $i++ ) {
+	WWD_Test_HTTP::queue( array( $openai_ok ) );
+	$burst = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+}
+
+check( 'more than a burst in a minute is slowed down', 429 === $burst->status, wp_json_encode( $burst->data ) );
+
+$models = DataChat_Licence_Endpoint::ai_models( new WP_REST_Request( array() ) )->get_data();
+check( 'the model list names one model', array( 'included' ) === array_column( $models['data'], 'id' ) );
+
+check( 'the relay\'s key is never in the report', false === strpos( wp_json_encode( DataChat_Licence_Endpoint::report( '' ) ), 'sk-shop-secret' ) );
 
 echo "\n{$checks} checks, {$failures} failures\n";
 

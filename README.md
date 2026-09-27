@@ -341,8 +341,29 @@ dietro il filtro `wwd_is_licensed`: le build a pagamento aggiungono un file,
 | Edizione | Cartella | Licenza |
 |---|---|---|
 | Free | `datachat-ai` | nessuna, 2 pannelli salvati |
-| Pro | `datachat-ai-pro` | chiave, pannelli illimitati |
-| Agency | `datachat-ai-agency` | chiave, multisito e white-label |
+| Pro | `datachat-ai-pro` | chiave, pannelli illimitati, **AI inclusa** (nessuna API key) |
+| Agency | `datachat-ai-agency` | chiave, pannelli illimitati, API key propria |
+
+### L'AI inclusa nel Pro
+
+Il Pro non chiede nessuna chiave al cliente: fa le domande al negozio che ha
+venduto la licenza, che le gira a OpenAI con la **sua** chiave. La rotta è
+`/wp-json/datachat/v1/ai/chat/completions`, nello stesso plugin dell'endpoint
+licenze, e parla la forma OpenAI: per il plugin è un provider come un altro,
+con la licenza al posto dell'API key.
+
+Il negozio risponde solo se la licenza è valida, è di un prodotto "con AI"
+e **è attiva su quel sito**; conta le chiamate per licenza e per mese (600 di
+default, cioè ~300 domande, due chiamate a domanda) e ne ammette al massimo 20
+al minuto. Oltre il tetto risponde 402 con un messaggio per il cliente, che può
+sempre passare a un provider suo. Del contenuto non tiene niente: solo il
+conteggio.
+
+Sul negozio, **Strumenti → DataChat licences → Settings**: id dei prodotti
+DataChat, id dei prodotti con AI inclusa, chiave OpenAI (mai mostrata di
+nuovo), modello e tetto mensile. In alternativa, costanti in `wp-config.php`:
+`DATACHAT_PRODUCT_IDS`, `DATACHAT_AI_PRODUCT_IDS`, `DATACHAT_OPENAI_API_KEY`,
+`DATACHAT_AI_MODEL`.
 
 Free e Pro stanno in cartelle diverse, quindi **si possono attivare entrambi**.
 Se succede, la seconda copia che si carica non carica niente e mostra un avviso

@@ -30,7 +30,8 @@ class WWD_Settings {
 			'engine'             => 'direct',
 
 			// The model, for the direct engine.
-			'model_provider'     => 'google',
+			// Pro comes with a model; everyone else starts on Google's free tier.
+			'model_provider'     => class_exists( 'WWD_License' ) && 'pro' === WWD_License::edition() ? 'included' : 'google',
 			'model_api_key'      => '',
 			'model_name'         => '',
 			'model_base'         => '',
@@ -169,7 +170,7 @@ class WWD_Settings {
 		if ( isset( $input['model_provider'] ) ) {
 			$provider = sanitize_key( $input['model_provider'] );
 
-			$clean['model_provider'] = array_key_exists( $provider, WWD_Model_Client::providers() ) ? $provider : 'google';
+			$clean['model_provider'] = array_key_exists( $provider, WWD_Model_Client::providers() ) ? $provider : self::defaults()['model_provider'];
 		}
 
 		if ( isset( $input['model_api_key'] ) ) {

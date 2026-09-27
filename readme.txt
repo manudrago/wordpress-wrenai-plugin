@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,6 +82,16 @@ Only if you enable public access explicitly. They will be able to run aggregate 
 the shared tables, so share only tables that are safe to expose.
 
 == Changelog ==
+
+= 2.4.0 =
+* Pro comes with a model. A Pro licence asks questions through the shop that sold it, so there
+  is no API key to create anywhere: pick "DataChat AI - included with your Pro licence" in
+  Settings (new Pro installs start on it) and ask. A monthly allowance of questions is included;
+  past it, any provider with your own key carries on.
+* The shop answers only for the site the licence is active on, and words its refusals for the
+  customer - not active here, allowance used up - instead of reporting a bad API key nobody
+  typed.
+* Agency and the free edition bring their own key, as before.
 
 = 2.3.0 =
 * One licence, one site. The shop records the domain behind every check, refuses a second one and

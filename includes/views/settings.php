@@ -259,6 +259,9 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 							<?php endforeach; ?>
 						</select>
 						<?php $wwd_current = WWD_Model_Client::provider( $settings['model_provider'] ); ?>
+						<?php if ( 'included' === $settings['model_provider'] ) : ?>
+							<p class="description"><?php esc_html_e( 'Questions go to the model that comes with your Pro licence, through the shop that sold it. Nothing to fill in below: the key, model and URL fields are ignored while this is selected. Your licence includes a monthly allowance of questions; choose another provider and paste your own key to go beyond it.', 'datachat-ai' ); ?></p>
+						<?php endif; ?>
 						<?php if ( $wwd_current['keys'] ) : ?>
 							<p class="description">
 								<?php

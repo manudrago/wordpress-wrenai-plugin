@@ -638,6 +638,29 @@ class WWD_License {
 	}
 
 	/**
+	 * Where the model included with Pro answers: beside the licence check, on
+	 * the same shop.
+	 *
+	 * @return string
+	 */
+	public static function ai_base() {
+		$endpoint = untrailingslashit( self::endpoint() );
+
+		if ( '' === $endpoint ) {
+			return '';
+		}
+
+		$base = preg_match( '#/license$#', $endpoint ) ? preg_replace( '#/license$#', '/ai', $endpoint ) : $endpoint . '/ai';
+
+		/**
+		 * Filters where the model included with Pro is reached.
+		 *
+		 * @param string $base URL, OpenAI-compatible (…/chat/completions is appended).
+		 */
+		return (string) apply_filters( 'wwd_ai_base', $base );
+	}
+
+	/**
 	 * The domain a key is being used on, as a shop expects to see it.
 	 *
 	 * @return string
