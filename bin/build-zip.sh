@@ -19,6 +19,11 @@
 #                 a GitHub source archive needs its own name:
 #                 ./bin/build-zip.sh --slug wordpress-wrenai-plugin-main
 #
+#   --shop        Build dist/datachat-license-endpoint.zip instead: the plugin
+#                 that goes on the shop and answers licence checks. WordPress's
+#                 uploader wants a zip, and deploy/license-endpoint.php is a
+#                 bare file, so this wraps it.
+#
 #   --endpoint U  Where paid builds check licence keys. Defaults to
 #                 $WWD_LICENSE_ENDPOINT, or the placeholder below.
 #
@@ -35,6 +40,7 @@ DIST="${ROOT}/dist"
 EDITION="free"
 SLUG=""
 ALL="no"
+SHOP="no"
 ENDPOINT="${WWD_LICENSE_ENDPOINT:-https://ideagency.co.uk/wp-json/datachat/v1/license}"
 PUBLIC_KEY_FILE="${WWD_LICENSE_PUBLIC_KEY_FILE:-}"
 
@@ -45,7 +51,8 @@ while [[ $# -gt 0 ]]; do
 		--endpoint) ENDPOINT="$2"; shift 2 ;;
 		--public-key) PUBLIC_KEY_FILE="$2"; shift 2 ;;
 		--all) ALL="yes"; shift ;;
-		-h|--help) sed -n '2,33p' "$0"; exit 0 ;;
+		--shop) SHOP="yes"; shift ;;
+		-h|--help) sed -n '2,39p' "$0"; exit 0 ;;
 		# A bare first argument is the slug, as this script used to take.
 		*) SLUG="$1"; shift ;;
 	esac
@@ -138,6 +145,22 @@ default_slug() {
 		*) echo "datachat-ai-$1" ;;
 	esac
 }
+
+if [[ "$SHOP" == "yes" ]]; then
+	build_dir="$(mktemp -d)"
+	slug="datachat-license-endpoint"
+
+	mkdir -p "${build_dir}/${slug}" "${DIST}"
+	cp "${ROOT}/deploy/license-endpoint.php" "${build_dir}/${slug}/${slug}.php"
+
+	rm -f "${DIST}/${slug}.zip"
+	( cd "${build_dir}" && zip -rq "${DIST}/${slug}.zip" "${slug}" )
+	rm -rf "${build_dir}"
+
+	printf 'dist/%s.zip  (shop)\n' "$slug"
+
+	exit 0
+fi
 
 if [[ "$ALL" == "yes" ]]; then
 	for edition in free pro agency; do
