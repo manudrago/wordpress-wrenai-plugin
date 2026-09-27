@@ -47,12 +47,16 @@ class WWD_License {
 
 		return array_merge(
 			array(
-				'key'         => '',
-				'status'      => 'none',
-				'message'     => '',
-				'expires'     => '',
-				'checked_at'  => 0,
+				'key'          => '',
+				'status'       => 'none',
+				'message'      => '',
+				'expires'      => '',
+				'checked_at'   => 0,
 				'confirmed_at' => 0,
+				// What the server last replied, kept so a shop whose dialect
+				// this plugin does not speak yet can be read by a human.
+				'last_code'    => 0,
+				'last_body'    => '',
 			),
 			$stored
 		);
@@ -226,9 +230,13 @@ class WWD_License {
 			'url'  => self::endpoint(),
 			'body' => array(
 				'action'      => 'validate',
+				// Licensing plugins disagree about what to call these, and an
+				// extra field is ignored where a missing one is fatal.
 				'license_key' => $key,
+				'key'         => $key,
 				'product'     => 'datachat-ai-' . self::edition(),
 				'domain'      => self::domain(),
+				'url'         => home_url(),
 			),
 		);
 
@@ -273,6 +281,8 @@ class WWD_License {
 		// it, is a shop that is down. That is silence, not a refusal, and the
 		// difference decides whether a paying customer keeps working.
 		if ( $code < 200 || $code >= 300 ) {
+			self::remember_reply( $code, $body );
+
 			return new WP_Error(
 				'wwd_license_unreachable',
 				sprintf(
@@ -282,6 +292,8 @@ class WWD_License {
 				)
 			);
 		}
+
+		self::remember_reply( $code, $body );
 
 		$data = json_decode( $body, true );
 		$data = is_array( $data ) ? $data : array();
@@ -346,7 +358,39 @@ class WWD_License {
 			}
 		}
 
+		// An endpoint that hands back a token has answered the question by
+		// handing it back: there is nothing to issue for a key it refuses.
+		foreach ( array( 'token', 'access_token', 'jwt' ) as $field ) {
+			if ( ! empty( $data[ $field ] ) && is_string( $data[ $field ] ) ) {
+				return 'valid';
+			}
+		}
+
+		if ( isset( $data['data'] ) && is_array( $data['data'] ) ) {
+			$nested = self::read_status( $data['data'] );
+
+			if ( 'unknown' !== $nested ) {
+				return $nested;
+			}
+		}
+
 		return 'unknown';
+	}
+
+	/**
+	 * Keep the server's last reply, so an unreadable one can be looked at.
+	 *
+	 * @param int    $code HTTP status.
+	 * @param string $body Raw body.
+	 * @return void
+	 */
+	protected static function remember_reply( $code, $body ) {
+		$state = self::state();
+
+		$state['last_code'] = (int) $code;
+		$state['last_body'] = substr( trim( wp_strip_all_tags( (string) $body ) ), 0, 1000 );
+
+		update_option( self::OPTION, $state, false );
 	}
 
 	/**

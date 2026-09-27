@@ -174,6 +174,44 @@ check( 'removing the key locks the paid features', ! WWD_License::is_valid() );
 check( 'and forgets it', '' === WWD_License::state()['key'] );
 
 // ---------------------------------------------------------------------------
+// Answers worded in other ways
+// ---------------------------------------------------------------------------
+
+shop_says( array( 'data' => array( 'status' => 'active' ) ) );
+
+check( 'an answer wrapped in a data object is read', ! is_wp_error( WWD_License::activate( 'KEY-1234' ) ) );
+
+shop_says( array( 'token' => 'eyJhbGciOi...' ) );
+
+check( 'an endpoint that hands back a token has said yes', ! is_wp_error( WWD_License::activate( 'KEY-1234' ) ) );
+
+shop_says( array( 'hello' => 'world' ) );
+
+$unreadable = WWD_License::activate( 'KEY-1234' );
+
+check( 'an answer that means nothing is not taken as a yes', is_wp_error( $unreadable ) );
+check( 'and it says so as silence, not as a refusal', 'wwd_license_unreadable' === $unreadable->get_error_code(), $unreadable->get_error_code() );
+
+// ---------------------------------------------------------------------------
+// The raw reply is kept, so an unreadable shop can be looked at
+// ---------------------------------------------------------------------------
+
+check( 'the body of that reply was kept', false !== strpos( WWD_License::state()['last_body'], 'world' ), WWD_License::state()['last_body'] );
+check( 'with the status beside it', 200 === WWD_License::state()['last_code'] );
+
+WWD_Test_HTTP::reset();
+WWD_Test_HTTP::$status = 502;
+WWD_Test_HTTP::$raw    = '<html><body>Bad gateway</body></html>';
+
+WWD_License::activate( 'KEY-1234' );
+
+$kept = WWD_License::state();
+
+check( 'an error page is kept too', false !== strpos( $kept['last_body'], 'Bad gateway' ), $kept['last_body'] );
+check( 'without its markup', false === strpos( $kept['last_body'], '<body>' ), $kept['last_body'] );
+check( 'and with the status that came with it', 502 === $kept['last_code'] );
+
+// ---------------------------------------------------------------------------
 // Adapting to a shop that speaks differently
 // ---------------------------------------------------------------------------
 

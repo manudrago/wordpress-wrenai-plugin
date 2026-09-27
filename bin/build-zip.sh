@@ -29,7 +29,7 @@ DIST="${ROOT}/dist"
 EDITION="free"
 SLUG=""
 ALL="no"
-ENDPOINT="${WWD_LICENSE_ENDPOINT:-https://ideagency.co.uk/}"
+ENDPOINT="${WWD_LICENSE_ENDPOINT:-https://ideagency.co.uk/wp-json/datachat/v1/license}"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -55,7 +55,9 @@ build() {
 
 	mkdir -p "${build_dir}/${slug}" "${DIST}"
 
-	# Ship what a site needs: no VCS metadata, no tests, no build output.
+	# Ship what a site needs: no VCS metadata, no tests, no build output, and
+	# nothing out of deploy/ - the server installer is fetched from GitHub when
+	# it is wanted, and the licence endpoint belongs on the shop, not here.
 	# tar rather than rsync, which is missing on plenty of machines.
 	tar -cf - -C "${ROOT}" \
 		--exclude './.git' \
@@ -63,6 +65,7 @@ build() {
 		--exclude './dist' \
 		--exclude './bin' \
 		--exclude './tests' \
+		--exclude './deploy' \
 		--exclude './.gitignore' \
 		--exclude './edition.php' \
 		. | tar -xf - -C "${build_dir}/${slug}"

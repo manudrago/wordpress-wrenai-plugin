@@ -124,6 +124,26 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 					<?php endif; ?>
 				</p>
 			</form>
+
+			<?php if ( $wwd_license['last_code'] || '' !== $wwd_license['last_body'] ) : ?>
+				<details class="wwd-license-reply">
+					<summary><?php esc_html_e( 'What the licence server replied', 'datachat-ai' ); ?></summary>
+					<p class="description">
+						<?php
+						printf(
+							/* translators: %d: HTTP status code. */
+							esc_html__( 'HTTP %d from', 'datachat-ai' ),
+							(int) $wwd_license['last_code']
+						);
+						?>
+						<code><?php echo esc_html( WWD_License::endpoint() ); ?></code>
+					</p>
+					<pre class="wwd-license-raw"><?php echo esc_html( $wwd_license['last_body'] ); ?></pre>
+					<p class="description">
+						<?php esc_html_e( 'Only useful when a key is refused and you do not know why. Send this to support; it holds no password.', 'datachat-ai' ); ?>
+					</p>
+				</details>
+			<?php endif; ?>
 		</div>
 	<?php endif; ?>
 
