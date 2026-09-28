@@ -22,6 +22,36 @@ class WWD_Brand {
 	const DEFAULT = 'DataChat';
 
 	/**
+	 * Put the brand where the core plugin asks for its name and icon.
+	 *
+	 * @return void
+	 */
+	public static function init() {
+		add_filter( 'wwd_menu_name', array( __CLASS__, 'filter_name' ) );
+		add_filter( 'wwd_menu_icon', array( __CLASS__, 'filter_icon' ) );
+	}
+
+	/**
+	 * The name, for the wwd_menu_name filter.
+	 *
+	 * @param string $name Name so far.
+	 * @return string
+	 */
+	public static function filter_name( $name ) {
+		return self::DEFAULT === self::name() ? $name : self::name();
+	}
+
+	/**
+	 * The icon, for the wwd_menu_icon filter.
+	 *
+	 * @param string $icon Icon so far.
+	 * @return string
+	 */
+	public static function filter_icon( $icon ) {
+		return self::available() ? self::icon() : $icon;
+	}
+
+	/**
 	 * Whether white label is available here.
 	 *
 	 * @return bool

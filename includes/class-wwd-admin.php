@@ -28,13 +28,29 @@ class WWD_Admin {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 		add_action( 'admin_post_wwd_save_settings', array( $this, 'save_settings' ) );
+		// wporg:strip-start
 		add_action( 'admin_post_wwd_license', array( $this, 'save_license' ) );
+		add_action( 'admin_post_wwd_brand', array( $this, 'save_brand' ) );
+		// wporg:strip-end
 		add_action( 'admin_post_wwd_clear_log', array( $this, 'clear_log' ) );
 		add_action( 'admin_post_wwd_flush_cache', array( $this, 'flush_cache' ) );
 		add_action( 'admin_post_wwd_panel_action', array( $this, 'panel_action' ) );
-		add_action( 'admin_post_wwd_brand', array( $this, 'save_brand' ) );
 		add_action( 'add_meta_boxes', array( $this, 'meta_boxes' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( WWD_PLUGIN_FILE ), array( $this, 'action_links' ) );
+	}
+
+	/**
+	 * The name on the menu and the screen titles.
+	 *
+	 * @return string
+	 */
+	public static function menu_name() {
+		/**
+		 * Filters the name the plugin goes by in wp-admin.
+		 *
+		 * @param string $name Menu name.
+		 */
+		return (string) apply_filters( 'wwd_menu_name', __( 'DataChat', 'datachat-ai' ) );
 	}
 
 	/**
@@ -49,12 +65,12 @@ class WWD_Admin {
 		$ask = (string) WWD_Settings::get( 'ask_capability', 'edit_posts' );
 
 		add_menu_page(
-			WWD_Brand::name(),
-			WWD_Brand::name(),
+			self::menu_name(),
+			self::menu_name(),
 			$ask,
 			'wwd',
 			array( $this, 'render_ask' ),
-			WWD_Brand::icon(),
+			(string) apply_filters( 'wwd_menu_icon', 'dashicons-chart-area' ),
 			58
 		);
 
@@ -82,6 +98,7 @@ class WWD_Admin {
 		echo '</div>';
 	}
 
+	// wporg:strip-start
 	/**
 	 * Store the white-label name and icon.
 	 *
@@ -104,6 +121,7 @@ class WWD_Admin {
 		wp_safe_redirect( admin_url( 'admin.php?page=wwd-settings&updated=1' ) );
 		exit;
 	}
+	// wporg:strip-end
 
 	/**
 	 * A saved dashboard, picked from a list.
@@ -146,6 +164,7 @@ class WWD_Admin {
 			echo '</ul>';
 		}
 
+		// wporg:strip-start
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- a status flag from our own redirect.
 		$wwd_report = isset( $_GET['wwd_report'] ) ? sanitize_key( wp_unslash( $_GET['wwd_report'] ) ) : '';
 
@@ -157,17 +176,25 @@ class WWD_Admin {
 			echo '<div class="notice notice-error is-dismissible"><p>' . esc_html__( 'The report could not be sent. Check that this site can send email.', 'datachat-ai' ) . '</p></div>';
 		}
 
+		// wporg:strip-end
+
 		echo wwd()->shortcodes()->render_dashboard( array( 'id' => $current ) ); // phpcs:ignore WordPress.Security.EscapeOutput
 
+		$wwd_more = '';
+
+		// wporg:strip-start
 		echo WWD_Reports::form( $current ); // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts.
 
+		$wwd_more = ' · ' . ( WWD_Dashboards::is_licensed()
+			? '<code>[datachat_dashboard id="' . (int) $current . '"]</code>'
+			: esc_html__( 'Shortcodes to show this dashboard on a page come with Pro and Agency.', 'datachat-ai' ) );
+		// wporg:strip-end
+
 		printf(
-			'<p class="description"><a href="%1$s">%2$s</a> · %3$s</p>',
+			'<p class="description"><a href="%1$s">%2$s</a>%3$s</p>',
 			esc_url( admin_url( 'edit.php?post_type=' . WWD_Dashboards::POST_TYPE ) ),
 			esc_html__( 'Rename or delete dashboards', 'datachat-ai' ),
-			WWD_Dashboards::is_licensed()
-				? '<code>[datachat_dashboard id="' . (int) $current . '"]</code>'
-				: esc_html__( 'Shortcodes to show this dashboard on a page come with Pro and Agency.', 'datachat-ai' )
+			$wwd_more // phpcs:ignore WordPress.Security.EscapeOutput -- escaped as it was built.
 		);
 
 		echo '</div>';
@@ -220,6 +247,7 @@ class WWD_Admin {
 		);
 	}
 
+	// wporg:strip-start
 	/**
 	 * Activate or remove the licence key.
 	 *
@@ -253,6 +281,7 @@ class WWD_Admin {
 
 		exit;
 	}
+	// wporg:strip-end
 
 	/**
 	 * Quick links on the plugins screen.
@@ -393,6 +422,7 @@ class WWD_Admin {
 			'high'
 		);
 
+		// wporg:strip-start
 		add_meta_box(
 			'wwd-shortcode',
 			__( 'Publish this dashboard', 'datachat-ai' ),
@@ -400,6 +430,7 @@ class WWD_Admin {
 			WWD_Dashboards::POST_TYPE,
 			'side'
 		);
+		// wporg:strip-end
 	}
 
 	/**
@@ -451,6 +482,7 @@ class WWD_Admin {
 		echo '</tbody></table>';
 	}
 
+	// wporg:strip-start
 	/**
 	 * Shortcode metabox.
 	 *
@@ -468,6 +500,7 @@ class WWD_Admin {
 		echo '<input type="text" class="widefat wwd-copy" readonly value="' . esc_attr( '[datachat_dashboard id="' . $post->ID . '"]' ) . '">';
 		echo '<p class="description">' . esc_html__( 'Add refresh="60" to reload the panels every 60 seconds.', 'datachat-ai' ) . '</p>';
 	}
+	// wporg:strip-end
 
 	/**
 	 * Settings screen.

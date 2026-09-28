@@ -2,11 +2,12 @@
 /**
  * Plugin Name:       DataChat AI
  * Plugin URI:        https://github.com/manudrago/wordpress-wrenai-plugin
- * Description:       Ask your WordPress or WooCommerce data anything in plain language and get instant, saveable dashboards. The model writes the SQL, a strict guard checks it, your database answers - and the rows never leave your site.
- * Version:           2.5.0
+ * Description:       Ask your WordPress or WooCommerce data anything in plain language and get instant, saveable dashboards. The model writes the SQL, a strict read-only guard checks it, and your own database answers.
+ * Version:           2.5.1
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
+ * Author URI:        https://ideagency.co.uk/
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       datachat-ai
@@ -16,6 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// wporg:strip-start
 /*
  * Declared by whichever copy loads first, and shared with any other: a second
  * declaration would be the very fatal error this file exists to avoid.
@@ -89,12 +91,14 @@ if ( defined( 'WWD_VERSION' ) ) {
 
 	return;
 }
+// wporg:strip-end
 
-define( 'WWD_VERSION', '2.5.0' );
+define( 'WWD_VERSION', '2.5.1' );
 define( 'WWD_PLUGIN_FILE', __FILE__ );
 define( 'WWD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WWD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+// wporg:strip-start
 /*
  * Which edition this copy is. The build script writes edition.php into the
  * paid archives; without it this is the free plugin, and the licence screen
@@ -105,6 +109,7 @@ if ( file_exists( WWD_PLUGIN_DIR . 'edition.php' ) ) {
 }
 
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-license.php';
+// wporg:strip-end
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-settings.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-logger.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-schema.php';
@@ -117,8 +122,10 @@ require_once WWD_PLUGIN_DIR . 'includes/class-wwd-engine-direct.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-engine-wren.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-pairing.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-dashboards.php';
+// wporg:strip-start
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-brand.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-reports.php';
+// wporg:strip-end
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-ask-session.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-rest.php';
 require_once WWD_PLUGIN_DIR . 'includes/class-wwd-shortcodes.php';

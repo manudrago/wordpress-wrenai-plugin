@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.0
+Stable tag: 2.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,7 +33,7 @@ which case nothing leaves your network.
 * Charts you choose: columns, bars, line, area, pie and KPI, one click apart. Time always runs
   forwards, long labels turn the chart on its side, colours follow your theme.
 * Tables, SQL on view and CSV export.
-* Saved dashboards that re-run live (the free edition keeps two saved panels).
+* Saved dashboards that re-run live, as many as you like.
 * WooCommerce ready: share the order and product tables and ask about sales, customers and stock.
 
 = Safe by design =
@@ -49,7 +49,7 @@ which case nothing leaves your network.
 = Pro and Agency =
 
 Paid editions, available from [ideagency.co.uk](https://ideagency.co.uk/our-plugins/), add
-unlimited saved panels, scheduled email reports, shortcodes to show dashboards on your pages, the
+scheduled email reports, shortcodes to show dashboards on your pages, the
 AI included without an API key (Pro), and ten sites per licence with white label (Agency). This
 free plugin is complete on its own and never contacts the shop.
 
@@ -96,7 +96,7 @@ provider you choose:
 * **An OpenAI-compatible endpoint of your choice** (OpenRouter, Ollama, LM Studio…): the URL you
   enter. Same data; the terms are those of whoever runs that endpoint.
 * **Wren AI**, only if you pick the Wren AI engine: the endpoint you enter, self-hosted or Wren AI
-  Cloud. Sent: the question and the schema. [Wren AI](https://getwren.ai/), [Privacy](https://getwren.ai/privacy).
+  Cloud. Sent: the question and the schema. [Wren AI](https://getwren.ai/), [Privacy](https://getwren.ai/privacy-policy).
   Settings can also generate a pairing command for your own server; the installer it runs is
   downloaded by you from this plugin's public GitHub repository. The plugin only shows the command
   and links to the guide; it never downloads or runs anything itself.
@@ -104,6 +104,11 @@ provider you choose:
 No data is sent anywhere until a provider and key are configured.
 
 == Changelog ==
+
+= 2.5.1 =
+* No limit on saved panels in any edition.
+* Saving or removing a panel through the REST API now also needs edit rights over that
+  dashboard, and the dashboard list only shows the ones the user can edit.
 
 = 2.5.0 =
 * Scheduled email reports (Pro and Agency). Under any dashboard, choose daily, weekly or monthly,

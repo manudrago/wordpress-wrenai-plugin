@@ -66,6 +66,7 @@ class WWD_Model_Client {
 	public static function providers() {
 		$providers = array();
 
+		// wporg:strip-start
 		// Pro carries a model with it: the shop that sold the licence answers
 		// on the customer's behalf, so there is no key to create anywhere.
 		// Agency and the free edition bring their own key, and never see this.
@@ -76,6 +77,19 @@ class WWD_Model_Client {
 				'model' => 'included',
 				'keys'  => '',
 				'shape' => 'openai',
+			);
+		}
+		// wporg:strip-end
+
+		// WordPress 7.0 ships an AI client of its own: the site owner sets a
+		// provider up once, for every plugin, and credentials stay with core.
+		if ( self::wp_ai_available() ) {
+			$providers['wordpress'] = array(
+				'label' => __( 'WordPress AI (the provider set up for this site, no key here)', 'datachat-ai' ),
+				'base'  => 'wordpress',
+				'model' => 'default',
+				'keys'  => '',
+				'shape' => 'wordpress',
 			);
 		}
 
@@ -109,6 +123,26 @@ class WWD_Model_Client {
 				'shape' => 'openai',
 			),
 		);
+	}
+
+	/**
+	 * Whether the WordPress AI client (WordPress 7.0 and later) is here and
+	 * allowed on this site.
+	 *
+	 * @return bool
+	 */
+	public static function wp_ai_available() {
+		return function_exists( 'wp_ai_client_prompt' )
+			&& ( ! function_exists( 'wp_supports_ai' ) || wp_supports_ai() );
+	}
+
+	/**
+	 * Whether this client goes through the WordPress AI client.
+	 *
+	 * @return bool
+	 */
+	public function is_wordpress_ai() {
+		return 'wordpress' === $this->provider;
 	}
 
 	/**
@@ -149,6 +183,13 @@ class WWD_Model_Client {
 			? (int) $overrides['timeout']
 			: (int) WWD_Settings::get( 'request_timeout', 30 );
 
+		// WordPress picks the model it has been set up with.
+		if ( $this->is_wordpress_ai() ) {
+			$this->model = 'default';
+			$this->base  = 'wordpress';
+		}
+
+		// wporg:strip-start
 		// The included model is the shop's to choose, and the licence is the
 		// only credential it takes. Nothing typed in Settings applies to it.
 		if ( 'included' === $this->provider ) {
@@ -159,8 +200,10 @@ class WWD_Model_Client {
 			// The shop relays to the model, so give it the time a model needs.
 			$this->timeout = max( 60, $this->timeout );
 		}
+		// wporg:strip-end
 	}
 
+	// wporg:strip-start
 	/**
 	 * Whether this client uses the model that comes with a Pro licence.
 	 *
@@ -169,6 +212,7 @@ class WWD_Model_Client {
 	public function is_included() {
 		return 'included' === $this->provider;
 	}
+	// wporg:strip-end
 
 	/**
 	 * Whether this client has everything it needs.
@@ -176,6 +220,10 @@ class WWD_Model_Client {
 	 * @return bool
 	 */
 	public function is_ready() {
+		if ( $this->is_wordpress_ai() ) {
+			return self::wp_ai_available();
+		}
+
 		if ( '' === $this->base || '' === $this->model ) {
 			return false;
 		}
@@ -202,18 +250,24 @@ class WWD_Model_Client {
 	 * @return array|WP_Error Decoded JSON object.
 	 */
 	public function complete( $system, $user, $max_out = 2048 ) {
+		// wporg:strip-start
 		if ( ! $this->is_ready() && $this->is_included() ) {
 			return new WP_Error(
 				'wwd_included_no_licence',
 				__( 'The AI included with Pro needs an active licence. Enter your key under DataChat → Settings → Licence.', 'datachat-ai' )
 			);
 		}
+		// wporg:strip-end
 
 		if ( ! $this->is_ready() ) {
 			return new WP_Error(
 				'wwd_model_unconfigured',
 				__( 'No model is configured yet. Add an API key under DataChat → Settings.', 'datachat-ai' )
 			);
+		}
+
+		if ( $this->is_wordpress_ai() ) {
+			return $this->wordpress_complete( $system, $user, $max_out );
 		}
 
 		$shape = self::provider( $this->provider );
@@ -491,10 +545,17 @@ class WWD_Model_Client {
 	 *                        returns them.
 	 */
 	public function models() {
+		// WordPress chooses among the models of the provider set up there.
+		if ( $this->is_wordpress_ai() ) {
+			return array( 'default' );
+		}
+
+		// wporg:strip-start
 		// One model, the shop's choice: nothing to list.
 		if ( $this->is_included() ) {
 			return array( 'included' );
 		}
+		// wporg:strip-end
 
 		if ( '' === $this->base ) {
 			return new WP_Error(
@@ -649,6 +710,61 @@ class WWD_Model_Client {
 	}
 
 	/**
+	 * Ask through the WordPress AI client, for a JSON object.
+	 *
+	 * @param string $system  Instructions.
+	 * @param string $user    The actual request.
+	 * @param int    $max_out Output token budget.
+	 * @return array|WP_Error
+	 */
+	protected function wordpress_complete( $system, $user, $max_out ) {
+		if ( ! self::wp_ai_available() ) {
+			return new WP_Error(
+				'wwd_model_unconfigured',
+				__( 'The WordPress AI client is not available on this site. Pick another provider under DataChat → Settings.', 'datachat-ai' )
+			);
+		}
+
+		$builder = wp_ai_client_prompt( $user )
+			->using_system_instruction( $system )
+			->using_max_tokens( (int) $max_out )
+			->using_temperature( 0.0 );
+
+		// Ask for JSON where the provider can enforce it, and read the answer
+		// leniently either way.
+		$text = $builder->as_json_response()->generate_text();
+
+		if ( is_wp_error( $text ) ) {
+			$text = wp_ai_client_prompt( $user )
+				->using_system_instruction( $system )
+				->using_max_tokens( (int) $max_out )
+				->generate_text();
+		}
+
+		if ( is_wp_error( $text ) ) {
+			return new WP_Error(
+				'wwd_model_unreachable',
+				sprintf(
+					/* translators: %s: error message from the WordPress AI client. */
+					__( 'The WordPress AI client could not answer: %s', 'datachat-ai' ),
+					$text->get_error_message()
+				)
+			);
+		}
+
+		$decoded = self::decode_json( (string) $text );
+
+		if ( null === $decoded ) {
+			return new WP_Error(
+				'wwd_model_not_json',
+				__( 'The model did not answer in the expected format. Try again, or pick a stronger model.', 'datachat-ai' )
+			);
+		}
+
+		return $decoded;
+	}
+
+	/**
 	 * Google AI Studio request.
 	 *
 	 * @param string $system  Instructions.
@@ -712,6 +828,7 @@ class WWD_Model_Client {
 			$headers['Authorization'] = 'Bearer ' . $this->api_key;
 		}
 
+		// wporg:strip-start
 		if ( $this->is_included() ) {
 			// Some hosts drop the Authorization header before PHP sees it, so
 			// the licence travels in a header of its own as well, with the
@@ -719,6 +836,7 @@ class WWD_Model_Client {
 			$headers['X-DataChat-Licence'] = $this->api_key;
 			$headers['X-DataChat-Site']    = WWD_License::domain();
 		}
+		// wporg:strip-end
 
 		$body = array( 'model' => $this->model );
 
@@ -800,12 +918,14 @@ class WWD_Model_Client {
 			$detail = trim( wp_strip_all_tags( substr( $body, 0, 200 ) ) );
 		}
 
+		// wporg:strip-start
 		// The shop words its refusals for the customer - licence not active
 		// here, monthly questions used up - so they are shown as they are,
 		// not dressed up as a provider refusing a key nobody typed.
 		if ( $this->is_included() && in_array( (int) $code, array( 401, 402, 403 ), true ) ) {
 			return new WP_Error( 'wwd_included_refused', '' !== $detail ? $detail : __( 'The AI included with your licence is not available right now.', 'datachat-ai' ) );
 		}
+		// wporg:strip-end
 
 		if ( 401 === $code || 403 === $code ) {
 			return new WP_Error(

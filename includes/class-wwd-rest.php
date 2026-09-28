@@ -8,17 +8,19 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the plugin routes under /wp-json/wren-ai/v1.
+ * Registers the plugin routes under /wp-json/datachat/v1.
  */
 class WWD_REST {
 
 	const NAMESPACE_V1 = 'datachat/v1';
 
+	// wporg:strip-start
 	/**
 	 * The namespace this plugin answered on before 2.0. A paired server, or a
 	 * page cached with the old script, still calls it.
 	 */
 	const LEGACY_NAMESPACE = 'wren-ai/v1';
+	// wporg:strip-end
 
 	/**
 	 * Hook the routes.
@@ -36,7 +38,9 @@ class WWD_REST {
 	 */
 	public function register_routes() {
 		$this->routes( self::NAMESPACE_V1 );
+		// wporg:strip-start
 		$this->routes( self::LEGACY_NAMESPACE );
+		// wporg:strip-end
 	}
 
 	/**
@@ -102,7 +106,7 @@ class WWD_REST {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'add_panel' ),
-				'permission_callback' => array( $this, 'can_save' ),
+				'permission_callback' => array( $this, 'can_edit_dashboard' ),
 				'args'                => array(
 					'session_id' => array(
 						'required' => true,
@@ -121,7 +125,7 @@ class WWD_REST {
 			array(
 				'methods'             => WP_REST_Server::DELETABLE,
 				'callback'            => array( $this, 'delete_panel' ),
-				'permission_callback' => array( $this, 'can_save' ),
+				'permission_callback' => array( $this, 'can_edit_dashboard' ),
 			)
 		);
 
@@ -291,6 +295,37 @@ class WWD_REST {
 	}
 
 	/**
+	 * Whether the current user may change this one dashboard: the plugin's
+	 * save capability, and edit rights over the dashboard post itself.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return bool|WP_Error
+	 */
+	public function can_edit_dashboard( WP_REST_Request $request ) {
+		$allowed = $this->can_save();
+
+		if ( true !== $allowed ) {
+			return $allowed;
+		}
+
+		$dashboard_id = (int) $request['id'];
+
+		if ( WWD_Dashboards::POST_TYPE !== get_post_type( $dashboard_id ) ) {
+			return new WP_Error( 'wwd_no_dashboard', __( 'That dashboard does not exist.', 'datachat-ai' ), array( 'status' => 404 ) );
+		}
+
+		if ( ! current_user_can( 'edit_post', $dashboard_id ) ) {
+			return new WP_Error(
+				'wwd_forbidden',
+				__( 'Your account is not allowed to change this dashboard.', 'datachat-ai' ),
+				array( 'status' => 403 )
+			);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Whether the current user administers the plugin.
 	 *
 	 * @return bool|WP_Error
@@ -372,6 +407,11 @@ class WWD_REST {
 		$items = array();
 
 		foreach ( WWD_Dashboards::all() as $dashboard ) {
+			// Only the dashboards this user could save a panel to.
+			if ( ! current_user_can( 'edit_post', $dashboard->ID ) ) {
+				continue;
+			}
+
 			$items[] = array(
 				'id'     => $dashboard->ID,
 				'title'  => $dashboard->post_title,

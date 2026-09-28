@@ -20,7 +20,7 @@ class WWD_Settings {
 	 * @return array
 	 */
 	public static function defaults() {
-		return array(
+		$defaults = array(
 			/*
 			 * Where the thinking happens. "direct" calls a language model from
 			 * this site and needs nothing installed anywhere; "wren" talks to a
@@ -29,9 +29,8 @@ class WWD_Settings {
 			 */
 			'engine'             => 'direct',
 
-			// The model, for the direct engine.
-			// Pro comes with a model; everyone else starts on Google's free tier.
-			'model_provider'     => class_exists( 'WWD_License' ) && 'pro' === WWD_License::edition() ? 'included' : 'google',
+			// The model, for the direct engine: Google's free tier to start.
+			'model_provider'     => 'google',
 			'model_api_key'      => '',
 			'model_name'         => '',
 			'model_base'         => '',
@@ -62,6 +61,15 @@ class WWD_Settings {
 			'show_sql'           => 1,
 			'log_queries'        => 1,
 		);
+
+		// wporg:strip-start
+		// Pro comes with a model of its own.
+		if ( class_exists( 'WWD_License' ) && 'pro' === WWD_License::edition() ) {
+			$defaults['model_provider'] = 'included';
+		}
+		// wporg:strip-end
+
+		return $defaults;
 	}
 
 	/**

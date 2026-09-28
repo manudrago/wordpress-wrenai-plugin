@@ -1,6 +1,6 @@
 <?php
 /**
- * What a site without a licence may keep. Runs without WordPress:
+ * Saving panels has no cap. Runs without WordPress:
  *
  *     php tests/test-limits.php
  *
@@ -162,44 +162,21 @@ function save_panel( $title ) {
 }
 
 // ---------------------------------------------------------------------------
-// Without a licence
+// No cap, licence or not: WordPress.org hosts only fully working plugins
 // ---------------------------------------------------------------------------
 
 check( 'a fresh site is not licensed', ! WWD_Dashboards::is_licensed() );
-check( 'and keeps two panels', 2 === WWD_Dashboards::panel_limit() );
 
-check( 'the first panel saves', ! is_wp_error( save_panel( 'one' ) ) );
-check( 'the second saves too', ! is_wp_error( save_panel( 'two' ) ) );
+foreach ( array( 'one', 'two', 'three', 'four', 'five' ) as $wwd_title ) {
+	check( "panel {$wwd_title} saves", ! is_wp_error( save_panel( $wwd_title ) ) );
+}
 
-$third = save_panel( 'three' );
+check( 'every one is stored', 5 === count( WWD_Dashboards::panels( 1 ) ) );
+check( 'there is no limit left to ask about', ! method_exists( 'WWD_Dashboards', 'panel_limit' ) );
 
-check( 'the third is refused', is_wp_error( $third ) && 'wwd_panel_limit' === $third->get_error_code() );
-check( 'and says how to make room', false !== strpos( $third->get_error_message(), 'Remove one' ), $third->get_error_message() );
-check( 'nothing already saved is lost', 2 === WWD_Dashboards::panel_count() );
-
-// Room is made by removing one, not by paying.
 WWD_Dashboards::delete_panel( 1, WWD_Dashboards::panels( 1 )[0]['id'] );
 
-check( 'removing one makes room again', ! is_wp_error( save_panel( 'three again' ) ) );
-
-// ---------------------------------------------------------------------------
-// With one
-// ---------------------------------------------------------------------------
-
-add_test_filter( 'wwd_is_licensed', true );
-
-check( 'a licensed site is not capped', WWD_Dashboards::panel_limit() > 1000 );
-check( 'and saves beyond the free limit', ! is_wp_error( save_panel( 'four' ) ) );
-check( 'which really is stored', 3 === WWD_Dashboards::panel_count() );
-
-// ---------------------------------------------------------------------------
-// A site that was over the limit before the limit existed
-// ---------------------------------------------------------------------------
-
-add_test_filter( 'wwd_is_licensed', false );
-
-check( 'an older site keeps every panel it had', 3 === count( WWD_Dashboards::panels( 1 ) ) );
-check( 'it just cannot add more', is_wp_error( save_panel( 'five' ) ) );
+check( 'removing one works', 4 === count( WWD_Dashboards::panels( 1 ) ) );
 check( 'and its data is still readable', null !== WWD_Dashboards::panel( 1, WWD_Dashboards::panels( 1 )[0]['id'] ) );
 
 echo "\n{$checks} checks, {$failures} failures\n";

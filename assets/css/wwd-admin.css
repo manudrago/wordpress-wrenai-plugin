@@ -224,25 +224,3 @@
 	padding: 0;
 	list-style: none;
 }
-
-/* The licence server's last answer, for when a key is refused unexplained. */
-.wwd-license-reply {
-	margin: 1rem 0 0;
-}
-
-.wwd-license-reply summary {
-	cursor: pointer;
-	color: #50575e;
-}
-
-.wwd-license-raw {
-	max-height: 12rem;
-	overflow: auto;
-	padding: .6rem .8rem;
-	background: #f6f7f7;
-	border: 1px solid #dcdcde;
-	border-radius: 4px;
-	font-size: 12px;
-	white-space: pre-wrap;
-	word-break: break-word;
-}

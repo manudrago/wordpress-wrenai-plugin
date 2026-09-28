@@ -13,8 +13,9 @@ defined( 'ABSPATH' ) || exit;
 $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_posts', 'edit_pages', 'manage_options' );
 ?>
 <div class="wrap wwd-wrap">
-	<h1><?php echo esc_html( WWD_Brand::name() ); ?></h1>
+	<h1><?php echo esc_html( WWD_Admin::menu_name() ); ?></h1>
 
+	<?php // wporg:strip-start ?>
 	<?php if ( 'license' === $updated ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Licence updated.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( 'license-failed' === $updated ) : ?>
@@ -23,9 +24,11 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Licence removed from this site. It is free to use on another one.', 'datachat-ai' ); ?></p></div>
 	<?php elseif ( 'license-removed-offline' === $updated ) : ?>
 		<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'Licence removed from this site, but the shop could not be reached to say so - until it notices, the key may still count as in use here. Try again from the other site, or ask us to free it.', 'datachat-ai' ); ?></p></div>
-	<?php elseif ( 'cache' === $updated ) : ?>
+	<?php endif; ?>
+	<?php // wporg:strip-end ?>
+	<?php if ( 'cache' === $updated ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Cached results cleared.', 'datachat-ai' ); ?></p></div>
-	<?php elseif ( $updated ) : ?>
+	<?php elseif ( in_array( $updated, array( '1', 'resync' ), true ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Settings saved.', 'datachat-ai' ); ?></p></div>
 	<?php endif; ?>
 
@@ -86,6 +89,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		</div>
 	</div>
 
+	<?php // wporg:strip-start ?>
 	<?php if ( 'agency' === WWD_License::edition() ) : ?>
 		<?php $wwd_brand = WWD_Brand::stored(); ?>
 		<div class="wwd-pair-card">
@@ -171,6 +175,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 
 		</div>
 	<?php endif; ?>
+	<?php // wporg:strip-end ?>
 
 	<div class="wwd-pair-card wwd-engine-pane" data-wwd-pane="wren" <?php echo 'wren' === $settings['engine'] ? '' : 'hidden'; ?>>
 		<h2><?php esc_html_e( 'Connect a server automatically', 'datachat-ai' ); ?></h2>
@@ -273,17 +278,20 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 							<?php endforeach; ?>
 						</select>
 						<?php $wwd_current = WWD_Model_Client::provider( $settings['model_provider'] ); ?>
-						<?php $wwd_included = 'included' === $settings['model_provider']; ?>
+						<?php $wwd_managed = in_array( $settings['model_provider'], array( 'included', 'wordpress' ), true ); ?>
+						<p class="description wwd-wordpress-note" <?php echo 'wordpress' === $settings['model_provider'] ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the AI provider set up for this whole site in WordPress, with its own credentials - nothing to enter here.', 'datachat-ai' ); ?></p>
+						<?php // wporg:strip-start ?>
 						<?php if ( array_key_exists( 'included', WWD_Model_Client::providers() ) ) : ?>
-							<p class="description wwd-included-note" <?php echo $wwd_included ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the model that comes with your Pro licence - nothing else to set up. It includes a monthly allowance of questions; to go beyond it, choose another provider and paste your own key.', 'datachat-ai' ); ?></p>
+							<p class="description wwd-included-note" <?php echo 'included' === $settings['model_provider'] ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the model that comes with your Pro licence - nothing else to set up. It includes a monthly allowance of questions; to go beyond it, choose another provider and paste your own key.', 'datachat-ai' ); ?></p>
 						<?php endif; ?>
-						<p class="description wwd-keys-link" <?php echo ( $wwd_included || ! $wwd_current['keys'] ) ? 'hidden' : ''; ?>>
+						<?php // wporg:strip-end ?>
+						<p class="description wwd-keys-link" <?php echo ( $wwd_managed || ! $wwd_current['keys'] ) ? 'hidden' : ''; ?>>
 							<?php esc_html_e( 'Get a key at', 'datachat-ai' ); ?>
 							<a href="<?php echo esc_url( $wwd_current['keys'] ); ?>" target="_blank" rel="noreferrer noopener"><?php echo esc_html( (string) wp_parse_url( $wwd_current['keys'], PHP_URL_HOST ) ); ?></a>.
 						</p>
 					</td>
 				</tr>
-				<tr class="wwd-own-model" <?php echo $wwd_included ? 'hidden' : ''; ?>>
+				<tr class="wwd-own-model" <?php echo $wwd_managed ? 'hidden' : ''; ?>>
 					<th scope="row"><label for="wwd-model-key"><?php esc_html_e( 'API key', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_api_key]" id="wwd-model-key" type="password" class="regular-text code" autocomplete="off"
@@ -291,7 +299,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 						<p class="description"><?php esc_html_e( 'Stored in this site\'s options table and sent only to the provider above.', 'datachat-ai' ); ?></p>
 					</td>
 				</tr>
-				<tr class="wwd-own-model" <?php echo $wwd_included ? 'hidden' : ''; ?>>
+				<tr class="wwd-own-model" <?php echo $wwd_managed ? 'hidden' : ''; ?>>
 					<th scope="row"><label for="wwd-model-name"><?php esc_html_e( 'Model', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_name]" id="wwd-model-name" type="text" class="regular-text code"
@@ -305,7 +313,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 						<div class="wwd-model-choices" id="wwd-model-choices" hidden></div>
 					</td>
 				</tr>
-				<tr class="wwd-own-model" <?php echo $wwd_included ? 'hidden' : ''; ?>>
+				<tr class="wwd-own-model" <?php echo $wwd_managed ? 'hidden' : ''; ?>>
 					<th scope="row"><label for="wwd-model-base"><?php esc_html_e( 'API base URL', 'datachat-ai' ); ?></label></th>
 					<td>
 						<input name="wwd[model_base]" id="wwd-model-base" type="url" class="regular-text code"
@@ -460,6 +468,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 		<?php submit_button(); ?>
 	</form>
 
+	<?php // wporg:strip-start ?>
 	<h2 class="title"><?php esc_html_e( 'Shortcodes', 'datachat-ai' ); ?></h2>
 	<?php if ( ! WWD_Dashboards::is_licensed() ) : ?>
 		<p class="description"><?php esc_html_e( 'Shortcodes come with the Pro and Agency editions: put the ask form or a saved dashboard on any page of your site, for people without wp-admin access.', 'datachat-ai' ); ?></p>
@@ -470,6 +479,7 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 	<p><code>[datachat dashboard="12" title="Ask the data" examples="Sales this month|Top authors"]</code></p>
 	<p><?php esc_html_e( 'Render a saved dashboard:', 'datachat-ai' ); ?></p>
 	<p><code>[datachat_dashboard id="12" refresh="120"]</code></p>
+	<?php // wporg:strip-end ?>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wwd-inline-form">
 		<input type="hidden" name="action" value="wwd_flush_cache">

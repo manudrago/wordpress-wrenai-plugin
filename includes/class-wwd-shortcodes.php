@@ -25,6 +25,7 @@ class WWD_Shortcodes {
 	 * @return void
 	 */
 	public function init() {
+		// wporg:strip-start
 		add_shortcode( 'datachat', array( $this, 'shortcode_ask' ) );
 		add_shortcode( 'datachat_dashboard', array( $this, 'shortcode_dashboard' ) );
 
@@ -34,6 +35,7 @@ class WWD_Shortcodes {
 		add_shortcode( 'wren_ai_dashboard', array( $this, 'shortcode_ask' ) );
 		add_shortcode( 'wren_ask', array( $this, 'shortcode_ask' ) );
 		add_shortcode( 'wren_dashboard', array( $this, 'shortcode_dashboard' ) );
+		// wporg:strip-end
 
 		add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
 
@@ -148,6 +150,7 @@ class WWD_Shortcodes {
 		return apply_filters( 'wwd_example_questions', $defaults );
 	}
 
+	// wporg:strip-start
 	/**
 	 * [datachat] on a page: a paid feature. The screens in wp-admin call
 	 * render_ask() directly and are not affected.
@@ -182,9 +185,10 @@ class WWD_Shortcodes {
 
 		return $this->notice( __( 'DataChat shortcodes come with the Pro and Agency editions. Only administrators see this message.', 'datachat-ai' ) );
 	}
+	// wporg:strip-end
 
 	/**
-	 * The ask form: [datachat]
+	 * The ask form.
 	 *
 	 * @param array $atts Shortcode attributes.
 	 * @return string
@@ -292,7 +296,7 @@ class WWD_Shortcodes {
 	}
 
 	/**
-	 * A saved dashboard: [datachat_dashboard id="12"]
+	 * A saved dashboard.
 	 *
 	 * @param array $atts Shortcode attributes.
 	 * @return string

@@ -27,7 +27,7 @@ $wpdb->query( // phpcs:ignore WordPress.DB
 if ( defined( 'WWD_DELETE_DATA' ) && WWD_DELETE_DATA ) {
 	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}wwd_query_log" ); // phpcs:ignore WordPress.DB
 
-	$dashboards = get_posts(
+	$wwd_dashboards = get_posts(
 		array(
 			'post_type'      => 'wwd_dashboard',
 			'post_status'    => 'any',
@@ -36,7 +36,7 @@ if ( defined( 'WWD_DELETE_DATA' ) && WWD_DELETE_DATA ) {
 		)
 	);
 
-	foreach ( $dashboards as $dashboard_id ) {
-		wp_delete_post( $dashboard_id, true );
+	foreach ( $wwd_dashboards as $wwd_dashboard_id ) {
+		wp_delete_post( $wwd_dashboard_id, true );
 	}
 }

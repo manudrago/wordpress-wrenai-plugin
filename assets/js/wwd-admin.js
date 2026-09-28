@@ -317,8 +317,8 @@
 		} ).catch( function () {} );
 	}
 
-	// The model that comes with Pro needs no key, model or URL: hide what
-	// does not apply, and bring it back when another provider is picked.
+	// Keep the key, model and URL fields in step with the chosen provider: a
+	// provider that needs none of them hides them until another is picked.
 	function bindProviderToggle() {
 		var select = document.getElementById( 'wwd-provider' );
 
@@ -328,13 +328,19 @@
 
 		function apply() {
 			var included = 'included' === select.value;
+			var wordpress = 'wordpress' === select.value;
+			var managed = included || wordpress;
 
 			document.querySelectorAll( '.wwd-own-model' ).forEach( function ( node ) {
-				node.hidden = included;
+				node.hidden = managed;
 			} );
 
 			document.querySelectorAll( '.wwd-included-note' ).forEach( function ( node ) {
 				node.hidden = ! included;
+			} );
+
+			document.querySelectorAll( '.wwd-wordpress-note' ).forEach( function ( node ) {
+				node.hidden = ! wordpress;
 			} );
 
 			// Where to get a key, and what the empty fields default to, are

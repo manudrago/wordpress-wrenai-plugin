@@ -40,12 +40,15 @@ class WWD_Plugin {
 	 */
 	public function init() {
 		add_action( 'init', array( 'WWD_Dashboards', 'register' ) );
+		// wporg:strip-start
 		WWD_Reports::init();
+		WWD_Brand::init();
 
 		if ( WWD_License::is_paid_edition() ) {
 			add_filter( 'wwd_is_licensed', array( 'WWD_License', 'is_valid' ) );
 			add_action( 'admin_init', array( 'WWD_License', 'maybe_recheck' ) );
 		}
+		// wporg:strip-end
 		add_action( 'admin_notices', array( $this, 'setup_notice' ) );
 
 		$rest = new WWD_REST();
@@ -169,7 +172,9 @@ class WWD_Plugin {
 	 * @return void
 	 */
 	public static function deactivate() {
+		// wporg:strip-start
 		WWD_Reports::unschedule();
+		// wporg:strip-end
 		flush_rewrite_rules();
 	}
 }
