@@ -105,6 +105,12 @@ provider you choose:
 
 No data is sent anywhere until a provider and key are configured.
 
+== Screenshots ==
+
+1. A saved dashboard: figures, columns and a pie, each panel re-run live, with a CSV export.
+2. Data & schema: share only the tables the model may query, block sensitive columns and describe your data.
+3. Settings: pick the provider (Google, Groq, OpenAI, any OpenAI-compatible endpoint or the WordPress AI client) and who may ask.
+
 == Changelog ==
 
 = 2.5.1 =
