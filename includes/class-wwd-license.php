@@ -637,6 +637,226 @@ class WWD_License {
 		return (string) apply_filters( 'wwd_license_endpoint', $endpoint );
 	}
 
+	// -----------------------------------------------------------------------
+	// How much of the included AI this licence has used.
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Where the last known count is kept.
+	 */
+	const USAGE = 'wwd_ai_usage';
+
+	/**
+	 * The question the model calls of this request belong to.
+	 *
+	 * @var string
+	 */
+	protected static $question = '';
+
+	/**
+	 * Say which question the next model calls belong to.
+	 *
+	 * @param string $id Question id.
+	 * @return void
+	 */
+	public static function use_question( $id ) {
+		self::$question = preg_match( '/^[A-Za-z0-9-]{8,64}$/', (string) $id ) ? (string) $id : '';
+	}
+
+	/**
+	 * The id every call of the current question carries, so the shop counts
+	 * it once however many calls it takes.
+	 *
+	 * @return string
+	 */
+	public static function question_id() {
+		if ( '' === self::$question ) {
+			self::$question = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : md5( uniqid( '', true ) );
+		}
+
+		return self::$question;
+	}
+
+	/**
+	 * Keep the count the shop sends back with every answer.
+	 *
+	 * @param array $response HTTP response.
+	 * @return void
+	 */
+	public static function remember_usage( $response ) {
+		$used = wp_remote_retrieve_header( $response, 'x-datachat-ai-used' );
+
+		if ( '' === (string) $used ) {
+			return;
+		}
+
+		update_option(
+			self::USAGE,
+			array(
+				'used'      => (int) $used,
+				'allowance' => (int) wp_remote_retrieve_header( $response, 'x-datachat-ai-allowance' ),
+				'extra'     => (int) wp_remote_retrieve_header( $response, 'x-datachat-ai-extra' ),
+				'renews'    => sanitize_text_field( (string) wp_remote_retrieve_header( $response, 'x-datachat-ai-renews' ) ),
+				'topup_url' => esc_url_raw( (string) wp_remote_retrieve_header( $response, 'x-datachat-ai-topup' ) ),
+				'at'        => time(),
+			),
+			false
+		);
+	}
+
+	/**
+	 * This month's count: asked from the shop at most every few minutes,
+	 * otherwise the last one it sent.
+	 *
+	 * @param bool $fresh Ask the shop now.
+	 * @return array Empty when nothing is known yet.
+	 */
+	public static function usage( $fresh = false ) {
+		$state = self::state();
+		$base  = self::ai_base();
+
+		if ( $fresh && '' !== $state['key'] && '' !== $base && false === get_transient( 'wwd_ai_usage_asked' ) ) {
+			set_transient( 'wwd_ai_usage_asked', 1, 5 * MINUTE_IN_SECONDS );
+
+			$response = wp_remote_get(
+				$base . '/usage',
+				array(
+					'timeout' => 8,
+					'headers' => array(
+						'Authorization'      => 'Bearer ' . $state['key'],
+						'X-DataChat-Licence' => $state['key'],
+						'X-DataChat-Site'    => self::domain(),
+					),
+				)
+			);
+
+			if ( ! is_wp_error( $response ) && 200 === (int) wp_remote_retrieve_response_code( $response ) ) {
+				$data = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+
+				if ( is_array( $data ) && isset( $data['used'] ) ) {
+					update_option(
+						self::USAGE,
+						array(
+							'used'      => (int) $data['used'],
+							'allowance' => (int) $data['allowance'],
+							'extra'     => (int) $data['extra'],
+							'renews'    => sanitize_text_field( (string) $data['renews'] ),
+							'topup_url' => esc_url_raw( (string) $data['topup_url'] ),
+							'at'        => time(),
+						),
+						false
+					);
+				}
+			}
+		}
+
+		$stored = get_option( self::USAGE, array() );
+
+		// A count from last month says nothing about this one.
+		if ( is_array( $stored ) && ! empty( $stored['renews'] ) && strtotime( $stored['renews'] . ' 00:00:00 UTC' ) <= time() ) {
+			$stored['used'] = 0;
+		}
+
+		return is_array( $stored ) && isset( $stored['used'] ) ? $stored : array();
+	}
+
+	/**
+	 * Where to buy more questions, or the settings when nothing is on sale.
+	 *
+	 * @param array $usage Count.
+	 * @return string
+	 */
+	protected static function topup_link( array $usage ) {
+		return ! empty( $usage['topup_url'] ) ? (string) $usage['topup_url'] : '';
+	}
+
+	/**
+	 * The count, as a bar with a button, for the settings screen.
+	 *
+	 * @return void
+	 */
+	public static function usage_box() {
+		$usage = self::usage( true );
+
+		if ( ! $usage || $usage['allowance'] <= 0 ) {
+			echo '<p class="description">' . esc_html__( 'Your use of the included AI will show here after the first question.', 'datachat-ai' ) . '</p>';
+
+			return;
+		}
+
+		$used  = min( (int) $usage['used'], (int) $usage['allowance'] );
+		$pct   = (int) round( 100 * $used / max( 1, (int) $usage['allowance'] ) );
+		$color = (int) $usage['extra'] > 0 ? '#2271b1' : ( $pct >= 100 ? '#d63638' : ( $pct >= 80 ? '#dba617' : '#2271b1' ) );
+		$link  = self::topup_link( $usage );
+
+		echo '<div class="wwd-usage" style="max-width:520px;margin:8px 0 4px">';
+		printf(
+			'<p style="margin:0 0 6px"><strong>%s</strong></p>',
+			esc_html(
+				sprintf(
+					/* translators: 1: questions used, 2: questions included, 3: renewal date. */
+					__( '%1$d of %2$d questions used this month · renews on %3$s', 'datachat-ai' ),
+					$used,
+					(int) $usage['allowance'],
+					'' !== $usage['renews'] ? date_i18n( get_option( 'date_format' ), strtotime( $usage['renews'] . ' 12:00:00 UTC' ) ) : '—'
+				)
+			)
+		);
+		printf( '<div style="height:10px;background:#dcdcde;border-radius:5px;overflow:hidden"><div style="height:100%%;width:%d%%;background:%s"></div></div>', (int) $pct, esc_attr( $color ) );
+
+		if ( (int) $usage['extra'] > 0 ) {
+			/* translators: %d: extra questions bought. */
+			echo '<p style="margin:6px 0 0">' . esc_html( sprintf( _n( 'Plus %d extra question bought, used once the monthly ones are gone.', 'Plus %d extra questions bought, used once the monthly ones are gone.', (int) $usage['extra'], 'datachat-ai' ), (int) $usage['extra'] ) ) . '</p>';
+		}
+
+		if ( '' !== $link ) {
+			printf( '<p style="margin:8px 0 0"><a class="button" href="%s" target="_blank" rel="noopener">%s</a></p>', esc_url( $link ), esc_html__( 'Add questions →', 'datachat-ai' ) );
+		}
+
+		echo '</div>';
+	}
+
+	/**
+	 * Warn before the included questions run out, and when they have.
+	 *
+	 * @return void
+	 */
+	public static function usage_notice() {
+		if ( ! current_user_can( 'manage_options' ) || 'included' !== WWD_Settings::get( 'model_provider' ) ) {
+			return;
+		}
+
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+		if ( $screen && 'dashboard' !== $screen->id && false === strpos( (string) $screen->id, 'wwd' ) ) {
+			return;
+		}
+
+		$usage = self::usage();
+
+		if ( ! $usage || $usage['allowance'] <= 0 || (int) $usage['extra'] > 0 || $usage['used'] < 0.8 * $usage['allowance'] ) {
+			return;
+		}
+
+		$renews  = '' !== (string) $usage['renews'] ? date_i18n( get_option( 'date_format' ), strtotime( $usage['renews'] . ' 12:00:00 UTC' ) ) : '';
+		$out     = $usage['used'] >= $usage['allowance'];
+		$message = $out
+			/* translators: %s: renewal date. */
+			? sprintf( __( 'DataChat AI: the questions included with your licence this month are used up. They renew on %s.', 'datachat-ai' ), $renews )
+			/* translators: 1: used, 2: included. */
+			: sprintf( __( 'DataChat AI: %1$d of the %2$d questions included this month are used.', 'datachat-ai' ), (int) $usage['used'], (int) $usage['allowance'] );
+		$link    = self::topup_link( $usage );
+
+		printf(
+			'<div class="notice %1$s"><p>%2$s %3$s <a href="%4$s">%5$s</a></p></div>',
+			$out ? 'notice-error' : 'notice-warning',
+			esc_html( $message ),
+			'' !== $link ? sprintf( '<a class="button button-small" href="%s" target="_blank" rel="noopener">%s</a>', esc_url( $link ), esc_html__( 'Add questions', 'datachat-ai' ) ) : '',
+			esc_url( admin_url( 'admin.php?page=wwd-settings' ) ),
+			esc_html__( 'or use your own API key', 'datachat-ai' )
+		);
+	}
+
 	/**
 	 * Where the model included with Pro answers: beside the licence check, on
 	 * the same shop.

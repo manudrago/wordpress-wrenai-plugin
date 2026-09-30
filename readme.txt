@@ -4,7 +4,7 @@ Tags: analytics, dashboard, ai, charts, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.1
+Stable tag: 2.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -104,6 +104,10 @@ provider you choose:
 No data is sent anywhere until a provider and key are configured.
 
 == Changelog ==
+
+= 2.6.0 =
+* Pro: the settings show how many of this month's included AI questions are used, with a warning before they run out and a button to add more.
+* Every model call of one question now counts as one question.
 
 = 2.5.1 =
 * No limit on saved panels in any edition.

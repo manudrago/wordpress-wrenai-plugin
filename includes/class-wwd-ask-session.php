@@ -74,7 +74,17 @@ class WWD_Ask_Session {
 			return $ready;
 		}
 
-		$thread  = $keep_thread ? self::thread() : array();
+		$thread = $keep_thread ? self::thread() : array();
+		$id     = wp_generate_uuid4();
+
+		// wporg:strip-start
+		// Every model call this question makes, across polls, is one question
+		// to the shop that counts the included AI.
+		if ( class_exists( 'WWD_License' ) ) {
+			WWD_License::use_question( $id );
+		}
+		// wporg:strip-end
+
 		$started = $engine->start_sql( $question, $thread );
 
 		// A provider that is merely busy has not answered no: the question is
@@ -86,7 +96,7 @@ class WWD_Ask_Session {
 		}
 
 		$state = array(
-			'id'         => wp_generate_uuid4(),
+			'id'         => $id,
 			'user_id'    => get_current_user_id(),
 			'question'   => $question,
 			'thread'     => $thread,
@@ -166,6 +176,12 @@ class WWD_Ask_Session {
 		if ( (int) $state['user_id'] !== get_current_user_id() ) {
 			return new WP_Error( 'wwd_forbidden_session', __( 'This question belongs to somebody else.', 'datachat-ai' ) );
 		}
+
+		// wporg:strip-start
+		if ( class_exists( 'WWD_License' ) ) {
+			WWD_License::use_question( $id );
+		}
+		// wporg:strip-end
 
 		return new self( $state );
 	}

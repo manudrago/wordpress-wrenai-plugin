@@ -328,6 +328,12 @@ class WWD_Model_Client {
 			$data = json_decode( $body, true );
 			$data = is_array( $data ) ? $data : array();
 
+			// wporg:strip-start
+			if ( $this->is_included() ) {
+				WWD_License::remember_usage( $response );
+			}
+			// wporg:strip-end
+
 			if ( $code >= 200 && $code < 300 ) {
 				$text    = 'google' === $shape ? $this->google_text( $data ) : $this->openai_text( $data );
 				$decoded = self::decode_json( $text );
@@ -833,8 +839,9 @@ class WWD_Model_Client {
 			// Some hosts drop the Authorization header before PHP sees it, so
 			// the licence travels in a header of its own as well, with the
 			// site it is being used on.
-			$headers['X-DataChat-Licence'] = $this->api_key;
-			$headers['X-DataChat-Site']    = WWD_License::domain();
+			$headers['X-DataChat-Licence']  = $this->api_key;
+			$headers['X-DataChat-Site']     = WWD_License::domain();
+			$headers['X-DataChat-Question'] = WWD_License::question_id();
 		}
 		// wporg:strip-end
 

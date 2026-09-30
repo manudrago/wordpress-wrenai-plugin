@@ -47,6 +47,7 @@ class WWD_Plugin {
 		if ( WWD_License::is_paid_edition() ) {
 			add_filter( 'wwd_is_licensed', array( 'WWD_License', 'is_valid' ) );
 			add_action( 'admin_init', array( 'WWD_License', 'maybe_recheck' ) );
+			add_action( 'admin_notices', array( 'WWD_License', 'usage_notice' ) );
 		}
 		// wporg:strip-end
 		add_action( 'admin_notices', array( $this, 'setup_notice' ) );

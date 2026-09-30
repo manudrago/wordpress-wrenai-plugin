@@ -412,8 +412,22 @@ function wp_remote_request( $url, $args = array() ) {
 
 	return array(
 		'response' => array( 'code' => $answer['status'] ),
+		'headers'  => isset( $answer['headers'] ) ? array_change_key_case( (array) $answer['headers'] ) : array(),
 		'body'     => null === $answer['raw'] ? wp_json_encode( $answer['response'] ) : $answer['raw'],
 	);
+}
+
+/**
+ * Header of a response.
+ *
+ * @param array  $response Response.
+ * @param string $name     Header.
+ * @return string
+ */
+function wp_remote_retrieve_header( $response, $name ) {
+	$name = strtolower( $name );
+
+	return isset( $response['headers'][ $name ] ) ? (string) $response['headers'][ $name ] : '';
 }
 
 /**
@@ -757,4 +771,54 @@ function esc_attr( $text ) {
  */
 function esc_url( $url ) {
 	return (string) $url;
+}
+
+if ( ! function_exists( 'wp_salt' ) ) {
+	/**
+	 * Salt stub.
+	 *
+	 * @param string $scheme Scheme.
+	 * @return string
+	 */
+	function wp_salt( $scheme = 'auth' ) {
+		return 'test-salt-' . $scheme;
+	}
+}
+
+if ( ! function_exists( 'add_query_arg' ) ) {
+	/**
+	 * Query arg stub: key, value, url.
+	 *
+	 * @param string $key   Key.
+	 * @param string $value Value.
+	 * @param string $url   URL.
+	 * @return string
+	 */
+	function add_query_arg( $key, $value, $url ) {
+		return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . rawurlencode( $key ) . '=' . rawurlencode( $value );
+	}
+}
+
+if ( ! function_exists( 'absint' ) ) {
+	/**
+	 * absint stub.
+	 *
+	 * @param mixed $value Value.
+	 * @return int
+	 */
+	function absint( $value ) {
+		return abs( (int) $value );
+	}
+}
+
+if ( ! function_exists( 'esc_url_raw' ) ) {
+	/**
+	 * URL sanitiser stub.
+	 *
+	 * @param string $url URL.
+	 * @return string
+	 */
+	function esc_url_raw( $url ) {
+		return preg_match( '#^https?://#i', (string) $url ) ? (string) $url : '';
+	}
 }

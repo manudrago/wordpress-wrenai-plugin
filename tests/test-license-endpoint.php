@@ -172,6 +172,24 @@ class WP_REST_Response {
 	public function is_error() {
 		return $this->status >= 400;
 	}
+
+	/**
+	 * Headers set on the response.
+	 *
+	 * @var array
+	 */
+	public $headers = array();
+
+	/**
+	 * Set a header.
+	 *
+	 * @param string $name  Name.
+	 * @param string $value Value.
+	 * @return void
+	 */
+	public function header( $name, $value ) {
+		$this->headers[ $name ] = $value;
+	}
 }
 
 /**
@@ -752,8 +770,12 @@ check( 'the route and the page report the same thing', array_keys( $through_rest
  * @param bool   $own  Send the key in X-DataChat-Licence rather than Authorization.
  * @return WP_REST_Response
  */
-function relay_ask( $key, $site, array $json = array(), $own = true ) {
+function relay_ask( $key, $site, array $json = array(), $own = true, $question = '' ) {
 	$headers = array( 'x_datachat_site' => $site );
+
+	if ( '' !== $question ) {
+		$headers['x_datachat_question'] = $question;
+	}
 
 	if ( $own ) {
 		$headers['x_datachat_licence'] = $key;
@@ -860,28 +882,112 @@ Shop_Order::$status = 'completed';
 check( 'an unknown key is refused', 403 === $unknown->status && 'invalid_licence' === $unknown->data['error']['code'], wp_json_encode( $unknown->data ) );
 check( 'and no key is refused as such', 401 === relay_ask( '', 'pro-site.example' )->status );
 
-// The allowance.
+// The allowance, counted in questions.
 add_test_filter( 'datachat_license_lookup', array( 'order_id' => 0, 'where' => 'slkwoo_feed', 'expires' => '', 'product_id' => '7001' ) );
-add_test_filter( 'datachat_ai_monthly_calls', 3 );
-delete_transient( 'datachat_ai_burst_' . substr( hash( 'sha256', 'DCAI-AI-0001' ), 0, 20 ) );
+delete_option( DataChat_Licence_Endpoint::AI_USAGE );
+delete_option( DataChat_Licence_Endpoint::AI_HISTORY );
+delete_option( DataChat_Licence_Endpoint::AI_CREDITS );
+add_test_filter( 'datachat_ai_monthly_questions', 2 );
+$ai_slot = Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) );
+$burst   = 'datachat_ai_burst_' . substr( hash( 'sha256', 'DCAI-AI-0001' ), 0, 20 );
+delete_transient( $burst );
 
-WWD_Test_HTTP::queue( array( $openai_ok ) );
-check( 'the third call of three is answered', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example' )->status );
+$with_tokens = $openai_ok;
+$with_tokens['response']['usage'] = array( 'prompt_tokens' => 1200, 'completion_tokens' => 300 );
 
+WWD_Test_HTTP::queue( array( $with_tokens ) );
+$first = relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-aaaaaaaa-1' );
+WWD_Test_HTTP::queue( array( $with_tokens ) );
+relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-aaaaaaaa-1' );
+$row = Shop_Probe::call( 'ai_row', array( $ai_slot ) );
+
+check( 'two calls of one question count one question', 1 === $row['questions'] && 2 === $row['calls'], wp_json_encode( $row ) );
+check( 'and their tokens are added up', 2400 === $row['tokens_in'] && 600 === $row['tokens_out'] );
+check( 'the product is kept with the count', '7001' === $row['product'] );
+check( 'the answer says how much is used', '1' === $first->headers['X-DataChat-AI-Used'] && '2' === $first->headers['X-DataChat-AI-Allowance'], wp_json_encode( $first->headers ) );
+check( 'and when it renews', gmdate( 'Y-m-d', gmmktime( 0, 0, 0, (int) gmdate( 'n' ) + 1, 1, (int) gmdate( 'Y' ) ) ) === $first->headers['X-DataChat-AI-Renews'] );
+check( 'no top-up link while nothing is on sale', ! isset( $first->headers['X-DataChat-AI-Topup'] ) );
+
+// A long question counts twice.
+$heavy = $openai_ok;
+$heavy['response']['usage'] = array( 'prompt_tokens' => DataChat_Licence_Endpoint::AI_HEAVY, 'completion_tokens' => 10 );
+WWD_Test_HTTP::queue( array( $heavy ) );
+relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-bbbbbbbb-2' );
+WWD_Test_HTTP::queue( array( $heavy ) );
+relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-bbbbbbbb-2' );
+$row = Shop_Probe::call( 'ai_row', array( $ai_slot ) );
+check( 'a question past the token limit counts as two, once', 3 === $row['questions'] && 1 === $row['heavy'], wp_json_encode( array( $row['questions'], $row['heavy'] ) ) );
+
+// Used up.
 WWD_Test_HTTP::queue( array( $openai_ok ) );
-$spent = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
-check( 'the fourth is refused with 402', 402 === $spent->status && 'quota_exceeded' === $spent->data['error']['code'], wp_json_encode( $spent->data ) );
-check( 'saying when it renews and how to go on', false !== strpos( $spent->data['error']['message'], 'renew' ) && false !== strpos( $spent->data['error']['message'], 'own API key' ) );
+$spent = relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-cccccccc-3' );
+check( 'a new question past the allowance is refused with 402', 402 === $spent->status && 'quota_exceeded' === $spent->data['error']['code'], wp_json_encode( $spent->data ) );
+check( 'saying when it renews and how to go on', false !== strpos( $spent->data['error']['message'], 'renew' ) && false !== strpos( $spent->data['error']['message'], 'add more questions' ) && false !== strpos( $spent->data['error']['message'], 'own API key' ) );
+check( 'without naming another product', false === strpos( $spent->data['error']['message'], 'DataChat' ) );
+check( 'the refusal carries the count too', '3' === $spent->headers['X-DataChat-AI-Used'] && '0' === $spent->headers['X-DataChat-AI-Extra'] );
 check( 'without reaching OpenAI', empty( WWD_Test_HTTP::$requests ) );
 
-// Last month's use does not count.
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+check( 'but a question already under way may finish', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-bbbbbbbb-2' )->status );
+
+// Bought questions.
+Shop_Probe::call( 'ai_credit_add', array( $ai_slot, 2 ) );
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+$paid = relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-dddddddd-4' );
+check( 'with questions bought, a new one is answered', 200 === $paid->status );
+check( 'and one bought question is spent', 1 === Shop_Probe::call( 'ai_credit_balance', array( $ai_slot ) ) && '1' === $paid->headers['X-DataChat-AI-Extra'] );
+check( 'the report counts it as extra', 1 === Shop_Probe::call( 'ai_row', array( $ai_slot ) )['extra_used'] );
+
+// An older plugin names no question: two calls make one.
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
+check( 'an older plugin\'s two calls count one question', 5 === Shop_Probe::call( 'ai_used', array( $ai_slot ) ) && 0 === Shop_Probe::call( 'ai_credit_balance', array( $ai_slot ) ) );
+
+// The usage report.
+$report = DataChat_Licence_Endpoint::ai_usage_report(
+	new WP_REST_Request( array( '_headers' => array( 'x_datachat_licence' => 'DCAI-AI-0001', 'x_datachat_site' => 'pro-site.example' ) ) )
+)->get_data();
+check( 'a licence can read its month', 5 === $report['used'] && 2 === $report['allowance'] && 0 === $report['extra'], wp_json_encode( $report ) );
+$stranger = DataChat_Licence_Endpoint::ai_usage_report( new WP_REST_Request( array( '_headers' => array( 'x_datachat_licence' => 'DCAI-AI-0001', 'x_datachat_site' => 'someone-else.example' ) ) ) );
+check( 'but not from a site it is not active on', 403 === $stranger->status );
+
+// Top-ups.
+add_test_filter( 'datachat_ai_topup_products', '8001:500' );
+$ref = Shop_Probe::call( 'topup_ref', array( $ai_slot ) );
+check( 'a top-up reference is not the key', 24 === strlen( $ref ) && false === strpos( $ref, 'DCAI' ) );
+check( 'and leads back to the licence', $ai_slot === Shop_Probe::call( 'topup_slot', array( $ref ) ) );
+check( 'an invented reference leads nowhere', '' === Shop_Probe::call( 'topup_slot', array( str_repeat( 'a', 24 ) ) ) );
+WWD_Test_HTTP::queue( array( $openai_ok ) );
+Shop_Probe::call( 'ai_credit_add', array( $ai_slot, 1 ) );
+$linked = relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-eeeeeeee-5' );
+check( 'with packs on sale the answer carries the link', isset( $linked->headers['X-DataChat-AI-Topup'] ) && false !== strpos( $linked->headers['X-DataChat-AI-Topup'], 'datachat_topup=' . $ref ), wp_json_encode( $linked->headers ) );
+add_test_filter( 'datachat_ai_topup_products', '' );
+
+// A new month starts from zero, and the old one is kept for the report.
 $usage = get_option( DataChat_Licence_Endpoint::AI_USAGE );
-$usage[ Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ]['month'] = '2001-01';
+$usage[ $ai_slot ]['month'] = '2001-01';
 update_option( DataChat_Licence_Endpoint::AI_USAGE, $usage );
 WWD_Test_HTTP::queue( array( $openai_ok ) );
-check( 'a new month starts from zero', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example' )->status );
-check( 'and the old month is forgotten', 1 === Shop_Probe::call( 'ai_used', array( Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ) ) );
-add_test_filter( 'datachat_ai_monthly_calls', 600 );
+check( 'a new month starts from zero', 200 === relay_ask( 'DCAI-AI-0001', 'pro-site.example', array(), true, 'q-ffffffff-6' )->status );
+check( 'with one question counted', 1 === Shop_Probe::call( 'ai_used', array( $ai_slot ) ) );
+$history = get_option( DataChat_Licence_Endpoint::AI_HISTORY );
+check( 'and the old month is kept in the history', isset( $history['2001-01'][ $ai_slot ] ) && 6 === $history['2001-01'][ $ai_slot ]['questions'], wp_json_encode( $history ) );
+check( 'without the question ids', ! isset( $history['2001-01'][ $ai_slot ]['qids'] ) );
+
+// The allowance per product, and the one set in calls before 1.8.
+add_test_filter( 'datachat_ai_monthly_questions', null );
+global $wwd_filters;
+unset( $wwd_filters['datachat_ai_monthly_questions'] );
+update_option( 'datachat_ai_monthly_calls', 600 );
+check( 'an allowance set in calls becomes questions', 300 === Shop_Probe::call( 'ai_allowance', array( '7001' ) ) );
+update_option( 'datachat_ai_product_questions', '7001:500' );
+check( 'a product can have its own', 500 === Shop_Probe::call( 'ai_allowance', array( '7001' ) ) && 300 === Shop_Probe::call( 'ai_allowance', array( '7002' ) ) );
+delete_option( 'datachat_ai_product_questions' );
+delete_option( 'datachat_ai_monthly_calls' );
+check( 'three hundred by default', 300 === Shop_Probe::call( 'ai_allowance', array() ) );
+add_test_filter( 'datachat_ai_monthly_questions', 300 );
 
 // Failures that are the shop's, not the customer's.
 WWD_Test_HTTP::queue( array( array( 'status' => 401, 'response' => array( 'error' => array( 'message' => 'Incorrect API key provided' ) ) ) ) );
@@ -891,7 +997,7 @@ check( 'OpenAI refusing the shop\'s key is not blamed on the customer', 503 === 
 WWD_Test_HTTP::queue( array( array( 'status' => 400, 'response' => array( 'error' => array( 'message' => "Unsupported parameter: 'max_tokens' is not supported with this model.", 'param' => 'max_tokens' ) ) ) ) );
 $dialect = relay_ask( 'DCAI-AI-0001', 'pro-site.example' );
 check( 'a parameter complaint goes back as OpenAI worded it', 400 === $dialect->status && 'max_tokens' === $dialect->data['error']['param'] );
-check( 'and a failed call is not counted', 1 === Shop_Probe::call( 'ai_used', array( Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ) ) );
+check( 'and a failed call is not counted', 1 === Shop_Probe::call( 'ai_row', array( Shop_Probe::call( 'ai_slot', array( 'DCAI-AI-0001' ) ) ) )['calls'] );
 
 // The burst limit.
 delete_transient( 'datachat_ai_burst_' . substr( hash( 'sha256', 'DCAI-AI-0001' ), 0, 20 ) );

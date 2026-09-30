@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       DataChat Licence Endpoint
  * Description:       Answers "is this licence key valid for this site?" for the DataChat AI paid editions, counts one site per licence, and signs the answer. Install this on the shop that sells them, not on a customer's site.
- * Version:           1.7.0
+ * Version:           1.8.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Emanuel Draghetti
@@ -92,13 +92,6 @@ class DataChat_Licence_Endpoint {
 	const STALE = 60 * DAY_IN_SECONDS;
 
 	/**
-	 * Model calls a Pro licence gets each calendar month, unless the shop says
-	 * otherwise. One question is two calls - the SQL, then the chart - so this
-	 * is three hundred questions.
-	 */
-	const AI_CALLS = 600;
-
-	/**
 	 * The model Pro questions go to, unless the shop picks another.
 	 */
 	const AI_MODEL = 'gpt-4.1-mini';
@@ -113,6 +106,33 @@ class DataChat_Licence_Endpoint {
 	 * Where the monthly count per licence is kept.
 	 */
 	const AI_USAGE = 'datachat_ai_usage';
+
+	/**
+	 * Questions a licence with AI included gets each month, unless the shop
+	 * says otherwise.
+	 */
+	const AI_QUESTIONS = 300;
+
+	/**
+	 * Tokens one question may use before it counts as two. A normal question
+	 * uses a few thousand; this only catches the unusual ones.
+	 */
+	const AI_HEAVY = 30000;
+
+	/**
+	 * Past months, kept for the report.
+	 */
+	const AI_HISTORY = 'datachat_ai_usage_history';
+
+	/**
+	 * Questions bought on top of the monthly allowance, per licence.
+	 */
+	const AI_CREDITS = 'datachat_ai_credits';
+
+	/**
+	 * How many past months are kept.
+	 */
+	const AI_HISTORY_MONTHS = 24;
 
 	/**
 	 * What SLKWoo encrypts its feed with.
@@ -158,6 +178,16 @@ class DataChat_Licence_Endpoint {
 		add_filter( 'rest_post_dispatch', array( __CLASS__, 'hide_own_keys' ), 10, 3 );
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_post_datachat_licence_settings', array( __CLASS__, 'save_settings' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'topup_landing' ) );
+		add_filter( 'woocommerce_add_cart_item_data', array( __CLASS__, 'topup_cart_item' ), 10, 2 );
+		add_filter( 'woocommerce_add_to_cart_validation', array( __CLASS__, 'topup_validate' ), 10, 2 );
+		add_action( 'woocommerce_before_add_to_cart_button', array( __CLASS__, 'topup_field' ) );
+		add_filter( 'woocommerce_get_item_data', array( __CLASS__, 'topup_item_data' ), 10, 2 );
+		add_action( 'woocommerce_checkout_create_order_line_item', array( __CLASS__, 'topup_order_item' ), 10, 3 );
+		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'topup_credit' ) );
+		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'topup_credit' ) );
+		add_action( 'woocommerce_order_status_cancelled', array( __CLASS__, 'topup_uncredit' ) );
+		add_action( 'woocommerce_order_status_refunded', array( __CLASS__, 'topup_uncredit' ) );
 	}
 
 	/**
@@ -292,6 +322,17 @@ class DataChat_Licence_Endpoint {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'ai_chat' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+
+		// What a licence has used this month, for the plugin's settings screen.
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/ai/usage',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'ai_usage_report' ),
 				'permission_callback' => '__return_true',
 			)
 		);
@@ -1521,39 +1562,133 @@ class DataChat_Licence_Endpoint {
 		);
 
 		printf(
-			'<tr><th scope="row"><label for="dc-calls">Model calls per licence per month</label></th><td><input id="dc-calls" name="datachat_ai_monthly_calls" type="number" min="0" step="10" class="small-text" value="%d"><p class="description">A question is two calls, so %d is about %d questions.</p></td></tr>',
-			(int) self::ai_allowance(),
-			(int) self::ai_allowance(),
-			(int) floor( self::ai_allowance() / 2 )
+			'<tr><th scope="row"><label for="dc-questions">Questions per licence per month</label></th><td><input id="dc-questions" name="datachat_ai_monthly_questions" type="number" min="0" step="10" class="small-text" value="%d"><p class="description">What a licence with AI included gets each month. A question counts once however many calls it takes.</p></td></tr>',
+			(int) self::ai_allowance()
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-product-questions">Questions per product</label></th><td><input id="dc-product-questions" name="datachat_ai_product_questions" type="text" class="regular-text code" value="%s" placeholder="5824:500"><p class="description">product:questions, comma-separated, for a product with its own allowance. Anything not listed gets the number above.</p></td></tr>',
+			esc_attr( (string) get_option( 'datachat_ai_product_questions', '' ) )
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-heavy">Long question</label></th><td><input id="dc-heavy" name="datachat_ai_heavy_tokens" type="number" min="1000" step="1000" class="small-text" value="%d"> tokens<p class="description">A question that uses more tokens than this counts as two. Normal questions use a few thousand.</p></td></tr>',
+			(int) self::ai_heavy()
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-topup">Extra-question packs</label></th><td><input id="dc-topup" name="datachat_ai_topup_products" type="text" class="regular-text code" value="%s" placeholder="5850:500,5851:2000"><p class="description">product:questions, comma-separated. When set, the plugins show an "Add questions" button that leads here; a paid pack adds its questions to that licence, used once the month\'s are gone.</p></td></tr>',
+			esc_attr( (string) get_option( 'datachat_ai_topup_products', '' ) )
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-topup-page">Packs page</label></th><td><input id="dc-topup-page" name="datachat_ai_topup_page" type="url" class="regular-text code" value="%s" placeholder="%s"><p class="description">Where the button lands. Empty: the first pack\'s product page.</p></td></tr>',
+			esc_attr( (string) get_option( 'datachat_ai_topup_page', '' ) ),
+			esc_attr( home_url( '/' ) )
+		);
+
+		printf(
+			'<tr><th scope="row"><label for="dc-price-in">Model price</label></th><td>$ <input id="dc-price-in" name="datachat_ai_price_in" type="number" min="0" step="0.01" class="small-text" value="%s"> input · $ <input name="datachat_ai_price_out" type="number" min="0" step="0.01" class="small-text" value="%s" aria-label="Output price"> output, per million tokens<p class="description">From your provider\'s price list, for the model above. Only used to estimate the cost in the table below.</p></td></tr>',
+			esc_attr( (string) get_option( 'datachat_ai_price_in', '' ) ),
+			esc_attr( (string) get_option( 'datachat_ai_price_out', '' ) )
 		);
 
 		echo '</table>';
 		submit_button( 'Save settings' );
 		echo '</form>';
 
-		$usage = self::ai_usage();
-		$month = gmdate( 'Y-m' );
+		self::usage_table();
+	}
 
-		echo '<h2>AI use this month</h2>';
-
-		$rows = array();
-
-		foreach ( $usage as $slot => $use ) {
-			if ( isset( $use['month'] ) && $month === $use['month'] ) {
-				$rows[] = sprintf(
-					'<tr><td><code>%s…</code></td><td>%s</td><td>%d / %d</td></tr>',
-					esc_html( substr( (string) $slot, 0, 10 ) ),
-					esc_html( isset( $use['site'] ) ? (string) $use['site'] : '' ),
-					(int) $use['calls'],
-					(int) self::ai_allowance()
-				);
+	/**
+	 * AI use per licence, for this month or a past one.
+	 *
+	 * @return void
+	 */
+	protected static function usage_table() {
+		$history = self::ai_history();
+		$current = gmdate( 'Y-m' );
+		$months  = array_merge( array( $current ), array_keys( $history ) );
+		$month   = isset( $_GET['datachat_month'] ) ? sanitize_text_field( wp_unslash( $_GET['datachat_month'] ) ) : $current; // phpcs:ignore WordPress.Security.NonceVerification
+		$month   = in_array( $month, $months, true ) ? $month : $current;
+		$rows    = $month === $current ? array_filter(
+			self::ai_usage(),
+			static function ( $use ) use ( $current ) {
+				return isset( $use['month'] ) && $current === $use['month'];
 			}
+		) : $history[ $month ];
+
+		echo '<h2>AI use</h2>';
+		echo '<form method="get" style="margin:0 0 12px"><input type="hidden" name="page" value="datachat-licence"><label>Month <select name="datachat_month" onchange="this.form.submit()">';
+
+		foreach ( $months as $m ) {
+			printf( '<option value="%1$s"%2$s>%1$s</option>', esc_attr( $m ), selected( $m, $month, false ) );
 		}
 
-		if ( $rows ) {
-			echo '<table class="widefat striped" style="max-width:720px"><thead><tr><th>Licence (hashed)</th><th>Site</th><th>Calls</th></tr></thead><tbody>' . implode( '', $rows ) . '</tbody></table>'; // phpcs:ignore WordPress.Security.EscapeOutput
-		} else {
-			echo '<p>No questions yet this month.</p>';
+		echo '</select></label></form>';
+
+		if ( ! $rows ) {
+			echo '<p>No questions in this month.</p>';
+
+			return;
+		}
+
+		$price_in  = (float) get_option( 'datachat_ai_price_in', 0 );
+		$price_out = (float) get_option( 'datachat_ai_price_out', 0 );
+		$credits   = self::ai_credits();
+		$out       = '';
+		$totals    = array( 'questions' => 0, 'calls' => 0, 'in' => 0, 'out' => 0, 'cost' => 0.0 );
+
+		uasort(
+			$rows,
+			static function ( $a, $b ) {
+				return ( isset( $b['questions'] ) ? (int) $b['questions'] : 0 ) <=> ( isset( $a['questions'] ) ? (int) $a['questions'] : 0 );
+			}
+		);
+
+		foreach ( $rows as $slot => $use ) {
+			$product   = isset( $use['product'] ) ? (string) $use['product'] : '';
+			$questions = isset( $use['questions'] ) ? (int) $use['questions'] : (int) ceil( ( isset( $use['calls'] ) ? (int) $use['calls'] : 0 ) / 2 );
+			$calls     = isset( $use['calls'] ) ? (int) $use['calls'] : 0;
+			$in        = isset( $use['tokens_in'] ) ? (int) $use['tokens_in'] : 0;
+			$tok_out   = isset( $use['tokens_out'] ) ? (int) $use['tokens_out'] : 0;
+			$cost      = ( $in * $price_in + $tok_out * $price_out ) / 1000000;
+			$extra     = isset( $credits[ $slot ]['balance'] ) ? (int) $credits[ $slot ]['balance'] : 0;
+
+			$totals['questions'] += $questions;
+			$totals['calls']     += $calls;
+			$totals['in']        += $in;
+			$totals['out']       += $tok_out;
+			$totals['cost']      += $cost;
+
+			$out .= sprintf(
+				'<tr><td>%1$s</td><td>%2$s<br><code style="font-size:11px">%3$s…</code></td><td>%4$d / %5$d%6$s</td><td>%7$d</td><td>%8$d</td><td>%9$s / %10$s</td><td>%11$s</td></tr>',
+				esc_html( '' !== $product && function_exists( 'get_the_title' ) ? get_the_title( (int) $product ) : '—' ),
+				esc_html( isset( $use['site'] ) ? (string) $use['site'] : '' ),
+				esc_html( substr( (string) $slot, 0, 10 ) ),
+				$questions,
+				(int) self::ai_allowance( $product ),
+				! empty( $use['heavy'] ) ? esc_html( sprintf( ' (%d long)', (int) $use['heavy'] ) ) : '',
+				$extra,
+				$calls,
+				esc_html( number_format( $in ) ),
+				esc_html( number_format( $tok_out ) ),
+				$price_in || $price_out ? esc_html( '$' . number_format( $cost, 2 ) ) : '—'
+			);
+		}
+
+		echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Product</th><th>Site</th><th>Questions</th><th>Extra left</th><th>Calls</th><th>Tokens in / out</th><th>Est. cost</th></tr></thead><tbody>' . $out . '</tbody>'; // phpcs:ignore WordPress.Security.EscapeOutput
+		printf(
+			'<tfoot><tr><th>Total</th><th></th><th>%1$d</th><th></th><th>%2$d</th><th>%3$s / %4$s</th><th>%5$s</th></tr></tfoot></table>',
+			(int) $totals['questions'],
+			(int) $totals['calls'],
+			esc_html( number_format( $totals['in'] ) ),
+			esc_html( number_format( $totals['out'] ) ),
+			$price_in || $price_out ? esc_html( '$' . number_format( $totals['cost'], 2 ) ) : '—'
+		);
+
+		if ( $month === $current ) {
+			echo '<p class="description">Months before 1.8 counted calls only; their questions are estimated as half the calls.</p>';
 		}
 	}
 
@@ -1603,8 +1738,31 @@ class DataChat_Licence_Endpoint {
 		$model = isset( $_POST['datachat_ai_model'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['datachat_ai_model'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
 		update_option( 'datachat_ai_model', $model, false );
 
-		if ( isset( $_POST['datachat_ai_monthly_calls'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
-			update_option( 'datachat_ai_monthly_calls', absint( $_POST['datachat_ai_monthly_calls'] ), false ); // phpcs:ignore WordPress.Security.NonceVerification
+		if ( isset( $_POST['datachat_ai_monthly_questions'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			update_option( 'datachat_ai_monthly_questions', absint( $_POST['datachat_ai_monthly_questions'] ), false ); // phpcs:ignore WordPress.Security.NonceVerification
+		}
+
+		foreach ( array( 'datachat_ai_product_questions', 'datachat_ai_topup_products' ) as $pairs ) {
+			$raw = isset( $_POST[ $pairs ] ) ? sanitize_text_field( wp_unslash( $_POST[ $pairs ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+			$map = array();
+
+			foreach ( self::pairs( $raw ) as $id => $number ) {
+				$map[] = $id . ':' . $number;
+			}
+
+			update_option( $pairs, implode( ',', $map ), false );
+		}
+
+		if ( isset( $_POST['datachat_ai_heavy_tokens'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			update_option( 'datachat_ai_heavy_tokens', max( 1000, absint( $_POST['datachat_ai_heavy_tokens'] ) ), false ); // phpcs:ignore WordPress.Security.NonceVerification
+		}
+
+		$page = isset( $_POST['datachat_ai_topup_page'] ) ? esc_url_raw( wp_unslash( $_POST['datachat_ai_topup_page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+		update_option( 'datachat_ai_topup_page', $page, false );
+
+		foreach ( array( 'datachat_ai_price_in', 'datachat_ai_price_out' ) as $price ) {
+			$value = isset( $_POST[ $price ] ) ? sanitize_text_field( wp_unslash( $_POST[ $price ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+			update_option( $price, is_numeric( $value ) ? (string) max( 0, (float) $value ) : '', false );
 		}
 
 		wp_safe_redirect( add_query_arg( array( 'page' => 'datachat-licence', 'datachat_saved' => 1 ), admin_url( 'tools.php' ) ) );
@@ -1634,23 +1792,28 @@ class DataChat_Licence_Endpoint {
 			return $gate;
 		}
 
-		$slot = self::ai_slot( $key );
+		$slot     = self::ai_slot( $key );
+		$product  = self::ai_product_of( $key );
+		$question = self::ai_question_id( $request );
 
 		if ( ! self::ai_burst_ok( $slot ) ) {
 			return self::ai_error( 429, 'Too many questions in a minute. Wait a moment and ask again.', 'rate_limit' );
 		}
 
-		$used = self::ai_used( $slot );
-
-		if ( $used >= self::ai_allowance() ) {
-			return self::ai_error(
+		// A question already under way is always allowed to finish: cutting
+		// it between its two calls would waste the first.
+		if ( ! self::ai_question_open( $slot, $question ) && ! self::ai_has_room( $slot, $product ) ) {
+			$refused = self::ai_error(
 				402,
 				sprintf(
-					'Your licence\'s %d questions for this month are used up. They renew on the 1st; to keep going now, choose another provider under DataChat → Settings and paste your own API key.',
-					(int) floor( self::ai_allowance() / 2 )
+					'The %1$d AI questions included with your licence this month are used up. They renew on %2$s. To keep going now, add more questions from the plugin settings, or choose another provider there and use your own API key.',
+					(int) self::ai_allowance( $product ),
+					self::ai_renews()
 				),
 				'quota_exceeded'
 			);
+
+			return self::ai_with_usage( $refused, $slot, $product );
 		}
 
 		$body = self::ai_body( (array) $request->get_json_params() );
@@ -1687,7 +1850,10 @@ class DataChat_Licence_Endpoint {
 		}
 
 		if ( $code >= 200 && $code < 300 ) {
-			self::ai_count( $slot, $site );
+			$tokens_in  = isset( $data['usage']['prompt_tokens'] ) ? (int) $data['usage']['prompt_tokens'] : 0;
+			$tokens_out = isset( $data['usage']['completion_tokens'] ) ? (int) $data['usage']['completion_tokens'] : 0;
+
+			self::ai_count( $slot, $site, $product, $question, $tokens_in, $tokens_out );
 
 			// Which model answered is the shop's business.
 			$data['model'] = 'included';
@@ -1696,7 +1862,73 @@ class DataChat_Licence_Endpoint {
 		// Anything else - a parameter this model will not take, a context too
 		// long - goes back as the provider worded it, because the plugin
 		// already knows how to adapt to those.
-		return new WP_REST_Response( $data, $code ? $code : 502 );
+		return self::ai_with_usage( new WP_REST_Response( $data, $code ? $code : 502 ), $slot, $product );
+	}
+
+	/**
+	 * What a licence has used this month, for the plugin's settings screen.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function ai_usage_report( WP_REST_Request $request ) {
+		$key  = self::bearer( $request );
+		$site = self::normalise( (string) $request->get_header( 'x_datachat_site' ) );
+		$gate = self::ai_gate( $key, $site );
+
+		if ( true !== $gate ) {
+			return $gate;
+		}
+
+		$slot    = self::ai_slot( $key );
+		$product = self::ai_product_of( $key );
+
+		return new WP_REST_Response( self::ai_summary( $slot, $product ), 200 );
+	}
+
+	/**
+	 * A licence's month, as the plugin shows it.
+	 *
+	 * @param string $slot    Licence slot.
+	 * @param string $product Product id.
+	 * @return array
+	 */
+	protected static function ai_summary( $slot, $product ) {
+		$row = self::ai_row( $slot );
+
+		return array(
+			'month'     => gmdate( 'Y-m' ),
+			'used'      => (int) $row['questions'],
+			'allowance' => (int) self::ai_allowance( $product ),
+			'extra'     => (int) self::ai_credit_balance( $slot ),
+			'renews'    => self::ai_renews(),
+			'topup_url' => self::topup_url( $slot ),
+		);
+	}
+
+	/**
+	 * Put a licence's month on a response, so the plugin can show it without
+	 * asking separately.
+	 *
+	 * @param WP_REST_Response $response Response.
+	 * @param string           $slot     Licence slot.
+	 * @param string           $product  Product id.
+	 * @return WP_REST_Response
+	 */
+	protected static function ai_with_usage( $response, $slot, $product ) {
+		if ( method_exists( $response, 'header' ) ) {
+			$summary = self::ai_summary( $slot, $product );
+			$response->header( 'X-DataChat-AI-Used', (string) $summary['used'] );
+			$response->header( 'X-DataChat-AI-Allowance', (string) $summary['allowance'] );
+			$response->header( 'X-DataChat-AI-Extra', (string) $summary['extra'] );
+			$response->header( 'X-DataChat-AI-Renews', $summary['renews'] );
+
+			if ( '' !== $summary['topup_url'] ) {
+				$response->header( 'X-DataChat-AI-Topup', $summary['topup_url'] );
+			}
+		}
+
+		return $response;
 	}
 
 	/**
@@ -1726,11 +1958,11 @@ class DataChat_Licence_Endpoint {
 	 */
 	protected static function ai_gate( $key, $site ) {
 		if ( '' === $key ) {
-			return self::ai_error( 401, 'No licence key was sent. Enter your key under DataChat → Settings → Licence.', 'no_licence' );
+			return self::ai_error( 401, 'No licence key was sent. Enter your licence key in the plugin settings.', 'no_licence' );
 		}
 
 		if ( '' === self::openai_key() ) {
-			return self::ai_error( 503, 'The AI included with Pro is not switched on yet. Use your own key under DataChat → Settings meanwhile.', 'not_configured' );
+			return self::ai_error( 503, 'The AI included with your licence is not switched on yet. Choose your own provider and key in the plugin settings meanwhile.', 'not_configured' );
 		}
 
 		$cache  = 'datachat_ai_ok_' . hash( 'sha256', $key );
@@ -1762,7 +1994,7 @@ class DataChat_Licence_Endpoint {
 		}
 
 		if ( ! in_array( (string) $cached['product'], self::ai_products(), true ) ) {
-			return self::ai_error( 403, 'This licence does not include the AI service - it is the edition that brings its own key. Choose a provider under DataChat → Settings and paste your API key.', 'not_included' );
+			return self::ai_error( 403, 'This licence does not include the AI service - it is the edition that brings its own key. Choose a provider in the plugin settings and paste your API key.', 'not_included' );
 		}
 
 		$all = self::sites();
@@ -1770,7 +2002,7 @@ class DataChat_Licence_Endpoint {
 		if ( '' === $site || ! isset( $all[ $slot ][ $site ] ) ) {
 			return self::ai_error(
 				403,
-				sprintf( 'This licence is not active on %s. Activate it under DataChat → Settings → Licence first.', '' !== $site ? $site : 'this site' ),
+				sprintf( 'This licence is not active on %s. Activate it in the plugin settings first.', '' !== $site ? $site : 'this site' ),
 				'not_activated'
 			);
 		}
@@ -2160,7 +2392,7 @@ class DataChat_Licence_Endpoint {
 	}
 
 	/**
-	 * Every licence's count for the month.
+	 * Every licence's count for the current month.
 	 *
 	 * @return array
 	 */
@@ -2171,46 +2403,188 @@ class DataChat_Licence_Endpoint {
 	}
 
 	/**
-	 * Calls this licence has made this month.
+	 * Past months, newest first: month => slot => row.
 	 *
-	 * @param string $slot Hashed key.
-	 * @return int
+	 * @return array
 	 */
-	protected static function ai_used( $slot ) {
-		$usage = self::ai_usage();
+	protected static function ai_history() {
+		$stored = get_option( self::AI_HISTORY, array() );
 
-		if ( ! isset( $usage[ $slot ]['month'] ) || gmdate( 'Y-m' ) !== $usage[ $slot ]['month'] ) {
-			return 0;
-		}
-
-		return (int) $usage[ $slot ]['calls'];
+		return is_array( $stored ) ? $stored : array();
 	}
 
 	/**
-	 * Count one answered call.
+	 * A licence's row for this month, with every field present.
 	 *
-	 * @param string $slot Hashed key.
-	 * @param string $site Domain.
+	 * @param string $slot Licence slot.
+	 * @return array
+	 */
+	protected static function ai_row( $slot ) {
+		$usage = self::ai_usage();
+		$row   = isset( $usage[ $slot ] ) && is_array( $usage[ $slot ] ) ? $usage[ $slot ] : array();
+
+		if ( ! isset( $row['month'] ) || gmdate( 'Y-m' ) !== $row['month'] ) {
+			$row = array();
+		}
+
+		return array_merge(
+			array(
+				'month'        => gmdate( 'Y-m' ),
+				'site'         => '',
+				'product'      => '',
+				'calls'        => 0,
+				'questions'    => 0,
+				'legacy_calls' => 0,
+				'tokens_in'    => 0,
+				'tokens_out'   => 0,
+				'heavy'        => 0,
+				'extra_used'   => 0,
+				'qids'         => array(),
+			),
+			$row
+		);
+	}
+
+	/**
+	 * Questions this licence has asked this month.
+	 *
+	 * @param string $slot Licence slot.
+	 * @return int
+	 */
+	protected static function ai_used( $slot ) {
+		return (int) self::ai_row( $slot )['questions'];
+	}
+
+	/**
+	 * The question a call belongs to, as the plugin names it. Every call of
+	 * one question carries the same id, so retries and the two steps of an
+	 * answer count once.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return string Empty for a plugin too old to send one.
+	 */
+	protected static function ai_question_id( WP_REST_Request $request ) {
+		$id = (string) $request->get_header( 'x_datachat_question' );
+
+		return preg_match( '/^[A-Za-z0-9-]{8,64}$/', $id ) ? $id : '';
+	}
+
+	/**
+	 * Whether a call belongs to a question already counted this month.
+	 *
+	 * @param string $slot     Licence slot.
+	 * @param string $question Question id.
+	 * @return bool
+	 */
+	protected static function ai_question_open( $slot, $question ) {
+		return '' !== $question && isset( self::ai_row( $slot )['qids'][ $question ] );
+	}
+
+	/**
+	 * Whether a licence may start another question.
+	 *
+	 * @param string $slot    Licence slot.
+	 * @param string $product Product id.
+	 * @return bool
+	 */
+	protected static function ai_has_room( $slot, $product ) {
+		return self::ai_used( $slot ) < self::ai_allowance( $product ) || self::ai_credit_balance( $slot ) > 0;
+	}
+
+	/**
+	 * Count one answered call: its tokens always, and the question it belongs
+	 * to when it is the first call of it. A question past the allowance is
+	 * paid for with a question bought on top, when there is one.
+	 *
+	 * @param string $slot       Licence slot.
+	 * @param string $site       Domain.
+	 * @param string $product    Product id.
+	 * @param string $question   Question id, empty from an older plugin.
+	 * @param int    $tokens_in  Prompt tokens.
+	 * @param int    $tokens_out Completion tokens.
 	 * @return void
 	 */
-	protected static function ai_count( $slot, $site ) {
+	protected static function ai_count( $slot, $site, $product = '', $question = '', $tokens_in = 0, $tokens_out = 0 ) {
 		$usage = self::ai_usage();
 		$month = gmdate( 'Y-m' );
+		$past  = array();
 
-		// Last month's counts are of no further use.
+		// Other months go to the history, where the report can still show them.
 		foreach ( $usage as $known => $use ) {
 			if ( ! isset( $use['month'] ) || $month !== $use['month'] ) {
+				if ( isset( $use['month'] ) ) {
+					unset( $use['qids'] );
+					$past[ $use['month'] ][ $known ] = $use;
+				}
+
 				unset( $usage[ $known ] );
 			}
 		}
 
-		$usage[ $slot ] = array(
-			'month' => $month,
-			'calls' => ( isset( $usage[ $slot ]['calls'] ) ? (int) $usage[ $slot ]['calls'] : 0 ) + 1,
-			'site'  => $site,
-		);
+		if ( $past ) {
+			self::ai_archive( $past );
+		}
+
+		$row                = self::ai_row( $slot );
+		$row['site']        = $site;
+		$row['product']     = '' !== $product ? $product : $row['product'];
+		$row['calls']      += 1;
+		$row['tokens_in']  += max( 0, (int) $tokens_in );
+		$row['tokens_out'] += max( 0, (int) $tokens_out );
+		$counted            = 0;
+
+		if ( '' !== $question ) {
+			$before = isset( $row['qids'][ $question ] ) ? (int) $row['qids'][ $question ] : -1;
+			$after  = max( 0, $before ) + max( 0, (int) $tokens_in ) + max( 0, (int) $tokens_out );
+
+			if ( $before < 0 ) {
+				$counted = 1;
+			}
+
+			// An unusually long question counts twice, once.
+			if ( $after > self::ai_heavy() && ( $before < 0 || $before <= self::ai_heavy() ) ) {
+				++$counted;
+				++$row['heavy'];
+			}
+
+			unset( $row['qids'][ $question ] );
+			$row['qids'][ $question ] = $after;
+			$row['qids']              = array_slice( $row['qids'], -40, null, true );
+		} else {
+			// An older plugin names no question: two calls make one.
+			++$row['legacy_calls'];
+			$counted = 1 === $row['legacy_calls'] % 2 ? 1 : 0;
+		}
+
+		for ( $i = 0; $i < $counted; $i++ ) {
+			++$row['questions'];
+
+			if ( $row['questions'] > self::ai_allowance( $row['product'] ) && self::ai_credit_take( $slot ) ) {
+				++$row['extra_used'];
+			}
+		}
+
+		$usage[ $slot ] = $row;
 
 		update_option( self::AI_USAGE, $usage, false );
+	}
+
+	/**
+	 * Keep finished months for the report.
+	 *
+	 * @param array $past month => slot => row.
+	 * @return void
+	 */
+	protected static function ai_archive( array $past ) {
+		$history = self::ai_history();
+
+		foreach ( $past as $month => $rows ) {
+			$history[ $month ] = isset( $history[ $month ] ) && is_array( $history[ $month ] ) ? array_merge( $history[ $month ], $rows ) : $rows;
+		}
+
+		krsort( $history );
+
+		update_option( self::AI_HISTORY, array_slice( $history, 0, self::AI_HISTORY_MONTHS, true ), false );
 	}
 
 	/**
@@ -2233,20 +2607,479 @@ class DataChat_Licence_Endpoint {
 	}
 
 	/**
-	 * Calls per licence per month.
+	 * Questions a licence gets each month.
+	 *
+	 * @param string $product Product id, for a product with its own allowance.
+	 * @return int
+	 */
+	protected static function ai_allowance( $product = '' ) {
+		$stored = get_option( 'datachat_ai_monthly_questions', '' );
+
+		if ( '' === $stored || null === $stored || false === $stored ) {
+			// Before 1.8 the allowance was set in calls, two to a question.
+			$calls     = get_option( 'datachat_ai_monthly_calls', '' );
+			$questions = '' === $calls || null === $calls || false === $calls ? self::AI_QUESTIONS : (int) floor( (int) $calls / 2 );
+		} else {
+			$questions = (int) $stored;
+		}
+
+		$map = self::ai_product_questions();
+
+		if ( '' !== (string) $product && isset( $map[ (string) $product ] ) ) {
+			$questions = $map[ (string) $product ];
+		}
+
+		/**
+		 * Filters the monthly questions a licence with AI included gets.
+		 *
+		 * @param int    $questions Questions.
+		 * @param string $product   Product id.
+		 */
+		return max( 0, (int) apply_filters( 'datachat_ai_monthly_questions', $questions, (string) $product ) );
+	}
+
+	/**
+	 * Products with an allowance of their own: product id => questions.
+	 *
+	 * @return array
+	 */
+	protected static function ai_product_questions() {
+		return self::pairs( (string) get_option( 'datachat_ai_product_questions', '' ) );
+	}
+
+	/**
+	 * Parse "id:number,id:number".
+	 *
+	 * @param string $raw Text.
+	 * @return array id => number.
+	 */
+	protected static function pairs( $raw ) {
+		$out = array();
+
+		foreach ( array_filter( array_map( 'trim', explode( ',', $raw ) ) ) as $pair ) {
+			$parts = array_map( 'absint', explode( ':', $pair ) );
+
+			if ( 2 === count( $parts ) && $parts[0] && $parts[1] ) {
+				$out[ (string) $parts[0] ] = $parts[1];
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Tokens past which one question counts as two.
 	 *
 	 * @return int
 	 */
-	protected static function ai_allowance() {
-		$stored = get_option( 'datachat_ai_monthly_calls', '' );
-		$calls  = '' === $stored || null === $stored || false === $stored ? self::AI_CALLS : (int) $stored;
+	protected static function ai_heavy() {
+		$stored = absint( get_option( 'datachat_ai_heavy_tokens', 0 ) );
 
+		return $stored ? $stored : self::AI_HEAVY;
+	}
+
+	/**
+	 * The product a key's licence is for, from the verdict the gate cached.
+	 *
+	 * @param string $key Licence key.
+	 * @return string
+	 */
+	protected static function ai_product_of( $key ) {
+		$cached = get_transient( 'datachat_ai_ok_' . hash( 'sha256', $key ) );
+
+		return is_array( $cached ) && isset( $cached['product'] ) ? (string) $cached['product'] : '';
+	}
+
+	/**
+	 * When the monthly questions start again.
+	 *
+	 * @return string Y-m-d.
+	 */
+	protected static function ai_renews() {
+		return gmdate( 'Y-m-d', gmmktime( 0, 0, 0, (int) gmdate( 'n' ) + 1, 1, (int) gmdate( 'Y' ) ) );
+	}
+
+	// -----------------------------------------------------------------------
+	// Questions bought on top of the allowance.
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Every licence's bought questions.
+	 *
+	 * @return array slot => array( balance, bought, used ).
+	 */
+	protected static function ai_credits() {
+		$stored = get_option( self::AI_CREDITS, array() );
+
+		return is_array( $stored ) ? $stored : array();
+	}
+
+	/**
+	 * Bought questions a licence has left.
+	 *
+	 * @param string $slot Licence slot.
+	 * @return int
+	 */
+	protected static function ai_credit_balance( $slot ) {
+		$credits = self::ai_credits();
+
+		return isset( $credits[ $slot ]['balance'] ) ? max( 0, (int) $credits[ $slot ]['balance'] ) : 0;
+	}
+
+	/**
+	 * Add (or, negative, take back) bought questions.
+	 *
+	 * @param string $slot   Licence slot.
+	 * @param int    $amount Questions.
+	 * @return int The new balance.
+	 */
+	protected static function ai_credit_add( $slot, $amount ) {
+		$credits = self::ai_credits();
+		$row     = isset( $credits[ $slot ] ) && is_array( $credits[ $slot ] ) ? $credits[ $slot ] : array();
+		$row     = array_merge( array( 'balance' => 0, 'bought' => 0, 'used' => 0 ), $row );
+
+		$row['balance'] = max( 0, (int) $row['balance'] + (int) $amount );
+		$row['bought']  = max( 0, (int) $row['bought'] + (int) $amount );
+
+		$credits[ $slot ] = $row;
+		update_option( self::AI_CREDITS, $credits, false );
+
+		return $row['balance'];
+	}
+
+	/**
+	 * Spend one bought question.
+	 *
+	 * @param string $slot Licence slot.
+	 * @return bool Whether there was one.
+	 */
+	protected static function ai_credit_take( $slot ) {
+		$credits = self::ai_credits();
+
+		if ( empty( $credits[ $slot ]['balance'] ) ) {
+			return false;
+		}
+
+		--$credits[ $slot ]['balance'];
+		$credits[ $slot ]['used'] = ( isset( $credits[ $slot ]['used'] ) ? (int) $credits[ $slot ]['used'] : 0 ) + 1;
+		update_option( self::AI_CREDITS, $credits, false );
+
+		return true;
+	}
+
+	/**
+	 * The products that sell extra questions: product id => questions each.
+	 *
+	 * @return array
+	 */
+	protected static function topup_products() {
 		/**
-		 * Filters the monthly calls a Pro licence gets.
+		 * Filters the products that sell extra questions.
 		 *
-		 * @param int $calls Calls.
+		 * @param string $products "product:questions" pairs, comma-separated.
 		 */
-		return max( 0, (int) apply_filters( 'datachat_ai_monthly_calls', $calls ) );
+		return self::pairs( (string) apply_filters( 'datachat_ai_topup_products', (string) get_option( 'datachat_ai_topup_products', '' ) ) );
+	}
+
+	/**
+	 * The reference a top-up link carries: stands for a licence without being
+	 * its key, and cannot be turned back into one.
+	 *
+	 * @param string $slot Licence slot.
+	 * @return string
+	 */
+	protected static function topup_ref( $slot ) {
+		return substr( hash_hmac( 'sha256', 'topup|' . $slot, wp_salt( 'auth' ) ), 0, 24 );
+	}
+
+	/**
+	 * The licence a top-up reference stands for.
+	 *
+	 * @param string $ref Reference.
+	 * @return string Slot, or empty.
+	 */
+	protected static function topup_slot( $ref ) {
+		if ( ! preg_match( '/^[a-f0-9]{24}$/', (string) $ref ) ) {
+			return '';
+		}
+
+		$known = array_merge( array_keys( self::sites() ), array_keys( self::ai_usage() ), array_keys( self::ai_credits() ) );
+
+		foreach ( array_unique( $known ) as $slot ) {
+			if ( hash_equals( self::topup_ref( (string) $slot ), (string) $ref ) ) {
+				return (string) $slot;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * The page a licence buys more questions on.
+	 *
+	 * @param string $slot Licence slot.
+	 * @return string Empty when nothing is on sale.
+	 */
+	protected static function topup_url( $slot ) {
+		if ( ! self::topup_products() ) {
+			return '';
+		}
+
+		return add_query_arg( 'datachat_topup', self::topup_ref( $slot ), home_url( '/' ) );
+	}
+
+	/**
+	 * The site a licence is used on, for showing the buyer which one it is.
+	 *
+	 * @param string $slot Licence slot.
+	 * @return string
+	 */
+	protected static function topup_site( $slot ) {
+		$sites = self::sites();
+
+		if ( ! empty( $sites[ $slot ] ) && is_array( $sites[ $slot ] ) ) {
+			return (string) array_keys( $sites[ $slot ] )[0];
+		}
+
+		$row = self::ai_row( $slot );
+
+		return (string) $row['site'];
+	}
+
+	/**
+	 * Arriving from a plugin's "Add questions" button: remember the licence and
+	 * show the packs.
+	 *
+	 * @return void
+	 */
+	public static function topup_landing() {
+		if ( ! isset( $_GET['datachat_topup'] ) || ! function_exists( 'WC' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
+
+		$slot = self::topup_slot( sanitize_key( wp_unslash( $_GET['datachat_topup'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification
+
+		if ( '' !== $slot && WC()->session ) {
+			if ( ! WC()->session->has_session() ) {
+				WC()->session->set_customer_session_cookie( true );
+			}
+
+			WC()->session->set( 'datachat_topup_slot', $slot );
+		}
+
+		$page = (string) get_option( 'datachat_ai_topup_page', '' );
+
+		if ( '' === $page ) {
+			$first = array_keys( self::topup_products() );
+			$page  = $first ? (string) get_permalink( (int) $first[0] ) : '';
+		}
+
+		if ( '' !== $page ) {
+			wp_safe_redirect( $page );
+			exit;
+		}
+	}
+
+	/**
+	 * The licence waiting in this visitor's session, if any.
+	 *
+	 * @return string
+	 */
+	protected static function topup_session_slot() {
+		if ( ! function_exists( 'WC' ) || ! WC()->session ) {
+			return '';
+		}
+
+		return (string) WC()->session->get( 'datachat_topup_slot', '' );
+	}
+
+	/**
+	 * On a pack's page: say which licence it tops up, or ask for the key.
+	 *
+	 * @return void
+	 */
+	public static function topup_field() {
+		global $product;
+
+		if ( ! $product || ! isset( self::topup_products()[ (string) $product->get_id() ] ) ) {
+			return;
+		}
+
+		$slot = self::topup_session_slot();
+
+		if ( '' !== $slot ) {
+			$site = self::topup_site( $slot );
+			echo '<p class="datachat-topup-for">' . esc_html( sprintf( 'These questions will be added to the licence used on %s.', '' !== $site ? $site : 'your site' ) ) . '</p>';
+
+			return;
+		}
+
+		echo '<p class="form-row"><label for="datachat-topup-licence">Licence key <abbr class="required" title="required">*</abbr></label><input type="text" class="input-text" id="datachat-topup-licence" name="datachat_topup_licence" autocomplete="off" style="width:100%"><small>The licence the questions are for. The quickest way is the "Add questions" button in the plugin settings, which fills this in.</small></p>';
+		wp_nonce_field( 'datachat_topup', 'datachat_topup_nonce' );
+	}
+
+	/**
+	 * The licence a pack being added is for.
+	 *
+	 * @return string Slot, or empty.
+	 */
+	protected static function topup_slot_from_request() {
+		$typed = isset( $_POST['datachat_topup_licence'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['datachat_topup_licence'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+		if ( '' === $typed ) {
+			return self::topup_session_slot();
+		}
+
+		if ( ! isset( $_POST['datachat_topup_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['datachat_topup_nonce'] ) ), 'datachat_topup' ) ) {
+			return '';
+		}
+
+		if ( ! self::allowed() ) {
+			return '';
+		}
+
+		list( $verdict, $found ) = self::verdict( $typed );
+
+		if ( 'valid' !== $verdict['status'] || ! $found || ! in_array( (string) self::product_of( $found ), self::ai_products(), true ) ) {
+			return '';
+		}
+
+		return self::slot_of( $typed, $found );
+	}
+
+	/**
+	 * A pack goes to the cart only with a licence to top up.
+	 *
+	 * @param bool $passed     So far.
+	 * @param int  $product_id Product.
+	 * @return bool
+	 */
+	public static function topup_validate( $passed, $product_id ) {
+		if ( ! $passed || ! isset( self::topup_products()[ (string) $product_id ] ) ) {
+			return $passed;
+		}
+
+		if ( '' === self::topup_slot_from_request() ) {
+			wc_add_notice( 'Enter a valid licence key that includes the AI, or use the "Add questions" button in the plugin settings.', 'error' );
+
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Carry the licence with the pack in the cart.
+	 *
+	 * @param array $data       Cart item data.
+	 * @param int   $product_id Product.
+	 * @return array
+	 */
+	public static function topup_cart_item( $data, $product_id ) {
+		if ( isset( self::topup_products()[ (string) $product_id ] ) ) {
+			$slot = self::topup_slot_from_request();
+
+			if ( '' !== $slot ) {
+				$data['datachat_topup_slot'] = $slot;
+				$data['datachat_topup_site'] = self::topup_site( $slot );
+			}
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Show, in cart and checkout, which site a pack is for.
+	 *
+	 * @param array $data Item data shown.
+	 * @param array $item Cart item.
+	 * @return array
+	 */
+	public static function topup_item_data( $data, $item ) {
+		if ( ! empty( $item['datachat_topup_slot'] ) ) {
+			$data[] = array(
+				'key'   => 'For the licence used on',
+				'value' => ! empty( $item['datachat_topup_site'] ) ? (string) $item['datachat_topup_site'] : 'your site',
+			);
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Keep the licence on the order line.
+	 *
+	 * @param WC_Order_Item_Product $item   Line.
+	 * @param string                $key    Cart key.
+	 * @param array                 $values Cart item.
+	 * @return void
+	 */
+	public static function topup_order_item( $item, $key, $values ) {
+		if ( ! empty( $values['datachat_topup_slot'] ) ) {
+			$item->add_meta_data( '_datachat_topup_slot', (string) $values['datachat_topup_slot'], true );
+			$item->add_meta_data( 'Licence site', ! empty( $values['datachat_topup_site'] ) ? (string) $values['datachat_topup_site'] : '', true );
+		}
+	}
+
+	/**
+	 * A paid pack adds its questions, once.
+	 *
+	 * @param int $order_id Order.
+	 * @return void
+	 */
+	public static function topup_credit( $order_id ) {
+		$order = wc_get_order( $order_id );
+
+		if ( ! $order ) {
+			return;
+		}
+
+		$packs = self::topup_products();
+
+		foreach ( $order->get_items() as $item ) {
+			$slot = (string) $item->get_meta( '_datachat_topup_slot' );
+			$pack = isset( $packs[ (string) $item->get_product_id() ] ) ? $packs[ (string) $item->get_product_id() ] : 0;
+
+			if ( '' === $slot || ! $pack || '' !== (string) $item->get_meta( '_datachat_topup_credited' ) ) {
+				continue;
+			}
+
+			$amount  = $pack * max( 1, (int) $item->get_quantity() );
+			$balance = self::ai_credit_add( $slot, $amount );
+
+			$item->update_meta_data( '_datachat_topup_credited', $amount );
+			$item->save();
+			$order->add_order_note( sprintf( '%1$d AI questions added to the licence used on %2$s (now %3$d extra).', $amount, self::topup_site( $slot ), $balance ) );
+		}
+	}
+
+	/**
+	 * A cancelled or refunded pack takes back what it added and was not used.
+	 *
+	 * @param int $order_id Order.
+	 * @return void
+	 */
+	public static function topup_uncredit( $order_id ) {
+		$order = wc_get_order( $order_id );
+
+		if ( ! $order ) {
+			return;
+		}
+
+		foreach ( $order->get_items() as $item ) {
+			$slot   = (string) $item->get_meta( '_datachat_topup_slot' );
+			$amount = (int) $item->get_meta( '_datachat_topup_credited' );
+
+			if ( '' === $slot || $amount <= 0 ) {
+				continue;
+			}
+
+			$balance = self::ai_credit_add( $slot, -$amount );
+
+			$item->update_meta_data( '_datachat_topup_credited', '' );
+			$item->save();
+			$order->add_order_note( sprintf( 'AI questions taken back from the licence used on %1$s (%2$d extra left).', self::topup_site( $slot ), $balance ) );
+		}
 	}
 
 	/**

@@ -91,6 +91,33 @@ check( 'and in a header of its own', 'DCAI-PRO-KEY-1' === $sent['headers']['X-Da
 check( 'naming the site', 'example.com' === $sent['headers']['X-DataChat-Site'] || '' !== $sent['headers']['X-DataChat-Site'], wp_json_encode( $sent['headers'] ) );
 check( 'never the key typed for another provider', false === strpos( wp_json_encode( $sent ), 'sk-typed-for-openai' ) );
 check( 'and asking for the included model', 'included' === $sent['body']['model'] );
+check( 'every call names the question it belongs to', preg_match( '/^[A-Za-z0-9-]{8,64}$/', (string) $sent['headers']['X-DataChat-Question'] ) );
+
+$first_question = $sent['headers']['X-DataChat-Question'];
+
+WWD_License::use_question( 'question-under-way-1' );
+WWD_Test_HTTP::queue(
+	array(
+		array(
+			'status'   => 200,
+			'response' => array( 'choices' => array( array( 'message' => array( 'content' => '{"ok": true}' ) ) ) ),
+			'headers'  => array(
+				'X-DataChat-AI-Used'      => '124',
+				'X-DataChat-AI-Allowance' => '300',
+				'X-DataChat-AI-Extra'     => '0',
+				'X-DataChat-AI-Renews'    => '2099-01-01',
+				'X-DataChat-AI-Topup'     => 'https://shop.example/?datachat_topup=abc',
+			),
+		),
+	)
+);
+$client->complete( 'sys', 'user' );
+
+check( 'a question under way keeps its id across polls', 'question-under-way-1' === WWD_Test_HTTP::$last['headers']['X-DataChat-Question'] && 'question-under-way-1' !== $first_question );
+
+$usage = WWD_License::usage();
+check( 'the count the shop sends back is kept', 124 === $usage['used'] && 300 === $usage['allowance'] && '2099-01-01' === $usage['renews'], wp_json_encode( $usage ) );
+check( 'with the link to buy more', 'https://shop.example/?datachat_topup=abc' === $usage['topup_url'] );
 
 WWD_Test_HTTP::queue(
 	array(

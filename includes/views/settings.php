@@ -282,7 +282,10 @@ $wwd_capabilities = array( 'read', 'edit_posts', 'edit_others_posts', 'publish_p
 						<p class="description wwd-wordpress-note" <?php echo 'wordpress' === $settings['model_provider'] ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the AI provider set up for this whole site in WordPress, with its own credentials - nothing to enter here.', 'datachat-ai' ); ?></p>
 						<?php // wporg:strip-start ?>
 						<?php if ( array_key_exists( 'included', WWD_Model_Client::providers() ) ) : ?>
-							<p class="description wwd-included-note" <?php echo 'included' === $settings['model_provider'] ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the model that comes with your Pro licence - nothing else to set up. It includes a monthly allowance of questions; to go beyond it, choose another provider and paste your own key.', 'datachat-ai' ); ?></p>
+							<p class="description wwd-included-note" <?php echo 'included' === $settings['model_provider'] ? '' : 'hidden'; ?>><?php esc_html_e( 'Questions go to the model that comes with your Pro licence - nothing else to set up. It includes a monthly allowance of questions; to go beyond it, add more questions or choose another provider and paste your own key.', 'datachat-ai' ); ?></p>
+							<?php if ( 'included' === $settings['model_provider'] ) : ?>
+								<?php WWD_License::usage_box(); ?>
+							<?php endif; ?>
 						<?php endif; ?>
 						<?php // wporg:strip-end ?>
 						<p class="description wwd-keys-link" <?php echo ( $wwd_managed || ! $wwd_current['keys'] ) ? 'hidden' : ''; ?>>
