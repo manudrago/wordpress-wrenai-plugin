@@ -61,12 +61,14 @@ function shop_says( array $body ) {
 
 check( 'the free build is not a paid edition', ! WWD_License::is_paid_edition() );
 check( 'and unlocks nothing', ! WWD_License::is_valid() );
+check( 'the free build is never switched off', ! WWD_License::locked() );
 
 define( 'WWD_EDITION', 'pro' );
 define( 'WWD_LICENSE_ENDPOINT', 'https://shop.example/licence' );
 
 check( 'a paid build knows which edition it is', 'pro' === WWD_License::edition() && WWD_License::is_paid_edition() );
 check( 'but not licensed until a key is activated', ! WWD_License::is_valid() );
+check( 'and switched off entirely until then', WWD_License::locked() );
 
 // ---------------------------------------------------------------------------
 // Activating
@@ -80,6 +82,7 @@ $result = WWD_License::activate( 'KEY-1234' );
 
 check( 'a good key activates', ! is_wp_error( $result ) );
 check( 'and unlocks the paid features', WWD_License::is_valid() );
+check( 'and the plugin runs', ! WWD_License::locked() );
 
 $sent = WWD_Test_HTTP::$last;
 
@@ -175,6 +178,7 @@ WWD_Test_HTTP::$response = array( 'released' => true );
 $removed = WWD_License::deactivate();
 
 check( 'removing the key locks the paid features', ! WWD_License::is_valid() );
+check( 'and switches the whole plugin off', WWD_License::locked() );
 check( 'and forgets it', '' === WWD_License::state()['key'] );
 check( 'the shop is told, so the licence can move', 'https://shop.example/licence/release' === WWD_Test_HTTP::$last['url'], WWD_Test_HTTP::$last['url'] );
 check( 'with the key and the site to free', 'KEY-1234' === WWD_Test_HTTP::$last['body']['license_key'] && 'shop.example' === WWD_Test_HTTP::$last['body']['domain'] );

@@ -100,6 +100,36 @@ class WWD_License {
 	}
 
 	/**
+	 * A paid copy with no active licence: it does not run at all.
+	 *
+	 * The paid editions are not the free plugin with extras. Without a
+	 * licence nothing answers, so removing the key really switches it off.
+	 *
+	 * @return bool
+	 */
+	public static function locked() {
+		return self::is_paid_edition() && ! self::is_valid();
+	}
+
+	/**
+	 * Say why nothing answers, and where to fix it.
+	 *
+	 * @return void
+	 */
+	public static function locked_notice() {
+		if ( ! self::locked() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-warning"><p>%1$s <a href="%2$s">%3$s</a></p></div>',
+			esc_html__( 'DataChat AI is switched off because there is no active licence on this site.', 'datachat-ai' ),
+			esc_url( admin_url( 'admin.php?page=wwd-settings' ) ),
+			esc_html__( 'Activate your licence', 'datachat-ai' )
+		);
+	}
+
+	/**
 	 * Whether the paid features are unlocked right now.
 	 *
 	 * @return bool

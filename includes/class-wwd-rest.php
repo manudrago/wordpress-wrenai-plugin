@@ -250,6 +250,12 @@ class WWD_REST {
 	 * @return bool|WP_Error
 	 */
 	public function can_ask() {
+		// wporg:strip-start
+		if ( WWD_License::locked() ) {
+			return new WP_Error( 'wwd_unlicensed', __( 'DataChat AI is switched off on this site because there is no active licence.', 'datachat-ai' ), array( 'status' => 403 ) );
+		}
+		// wporg:strip-end
+
 		if ( WWD_Settings::get( 'allow_public', 0 ) ) {
 			return true;
 		}
@@ -281,6 +287,12 @@ class WWD_REST {
 	 * @return bool|WP_Error
 	 */
 	public function can_save() {
+		// wporg:strip-start
+		if ( WWD_License::locked() ) {
+			return new WP_Error( 'wwd_unlicensed', __( 'DataChat AI is switched off on this site because there is no active licence.', 'datachat-ai' ), array( 'status' => 403 ) );
+		}
+		// wporg:strip-end
+
 		$capability = (string) WWD_Settings::get( 'save_capability', 'edit_posts' );
 
 		if ( ! current_user_can( $capability ) ) {

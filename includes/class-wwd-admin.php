@@ -87,6 +87,14 @@ class WWD_Admin {
 	 * @return void
 	 */
 	public function render_ask() {
+		// wporg:strip-start
+		if ( WWD_License::locked() ) {
+			echo '<div class="wrap wwd-wrap"><h1>' . esc_html( self::menu_name() ) . '</h1><p>' . esc_html__( 'DataChat AI is switched off because there is no active licence on this site.', 'datachat-ai' ) . ' <a href="' . esc_url( admin_url( 'admin.php?page=wwd-settings' ) ) . '">' . esc_html__( 'Activate your licence', 'datachat-ai' ) . '</a></p></div>';
+
+			return;
+		}
+		// wporg:strip-end
+
 		$shortcodes = wwd()->shortcodes();
 
 		echo '<div class="wrap wwd-wrap wwd-screen">';
@@ -129,6 +137,14 @@ class WWD_Admin {
 	 * @return void
 	 */
 	public function render_boards() {
+		// wporg:strip-start
+		if ( WWD_License::locked() ) {
+			echo '<div class="wrap wwd-wrap"><h1>' . esc_html( self::menu_name() ) . '</h1><p>' . esc_html__( 'DataChat AI is switched off because there is no active licence on this site.', 'datachat-ai' ) . ' <a href="' . esc_url( admin_url( 'admin.php?page=wwd-settings' ) ) . '">' . esc_html__( 'Activate your licence', 'datachat-ai' ) . '</a></p></div>';
+
+			return;
+		}
+		// wporg:strip-end
+
 		$boards = WWD_Dashboards::all();
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- choosing what to look at changes nothing.

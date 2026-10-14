@@ -48,6 +48,7 @@ class WWD_Plugin {
 			add_filter( 'wwd_is_licensed', array( 'WWD_License', 'is_valid' ) );
 			add_action( 'admin_init', array( 'WWD_License', 'maybe_recheck' ) );
 			add_action( 'admin_notices', array( 'WWD_License', 'usage_notice' ) );
+			add_action( 'admin_notices', array( 'WWD_License', 'locked_notice' ) );
 		}
 		// wporg:strip-end
 		add_action( 'admin_notices', array( $this, 'setup_notice' ) );
